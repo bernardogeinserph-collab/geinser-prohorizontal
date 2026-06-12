@@ -1,14 +1,16 @@
 import{useState}from'react'
 import{useAuth}from'../context/AuthContext'
 import{useNavigate}from'react-router-dom'
+import{supabase}from'../lib/supabase'
 
 export default function Login(){
-  const[step,setStep]=useState('rol') // 'rol' | 'form'
+  const[step,setStep]=useState('rol')
   const[rolSelected,setRolSelected]=useState(null)
   const[email,setEmail]=useState('')
   const[password,setPassword]=useState('')
   const[error,setError]=useState('')
   const[loading,setLoading]=useState(false)
+  const[magicSent,setMagicSent]=useState(false)
   const{signIn}=useAuth()
   const navigate=useNavigate()
 
@@ -17,6 +19,16 @@ export default function Login(){
     const{error:err}=await signIn(email,password)
     if(err){setError('Correo o contrasena incorrectos');setLoading(false)}
     else navigate('/')
+  }
+
+  async function handleMagicLink(e){
+    e.preventDefault();setLoading(true);setError('')
+    const{error:err}=await supabase.auth.signInWithOtp({
+      email,
+      options:{shouldCreateUser:true, data:{nombre:'Bernardo Director',rol:'director'}}
+    })
+    if(err){setError('Error al enviar enlace: '+err.message);setLoading(false)}
+    else{setMagicSent(true);setLoading(false)}
   }
 
   const GD='#0d2d4a',GB='#1e6fae',GG='#c9a227'
@@ -32,7 +44,6 @@ export default function Login(){
     </div>
   )
 
-  // PASO 1: Seleccionar tipo de usuario
   if(step==='rol') return(
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
       <div style={{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
@@ -40,28 +51,40 @@ export default function Login(){
         <p style={{textAlign:'center',fontSize:13,color:'#6b7280',marginBottom:24}}>Selecciona tu tipo de acceso</p>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:8}}>
           <button onClick={()=>{setRolSelected('director');setStep('form')}}
-            style={{background:'#f0f7ff',border:'2px solid '+GB,borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center',transition:'all .2s'}}>
+            style={{background:'#f0f7ff',border:'2px solid '+GB,borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center'}}>
             <div style={{fontSize:28,marginBottom:8}}>🏢</div>
             <div style={{fontWeight:900,color:GD,fontSize:14}}>Director</div>
-            <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>Gestión integral de todas las copropiedades</div>
+            <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>Gestion integral de todas las copropiedades</div>
           </button>
           <button onClick={()=>{setRolSelected('delegado');setStep('form')}}
-            style={{background:'#f0f9f4',border:'2px solid #059669',borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center',transition:'all .2s'}}>
+            style={{background:'#f0f9f4',border:'2px solid #059669',borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center'}}>
             <div style={{fontSize:28,marginBottom:8}}>👤</div>
             <div style={{fontWeight:900,color:'#065f46',fontSize:14}}>Delegado</div>
             <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>Acceso a copropiedades asignadas</div>
           </button>
         </div>
-        <p style={{textAlign:'center',fontSize:11,color:'#d1d5db',marginTop:20}}>Plataforma de Gestion Integral · Geinser</p>
+        <p style={{textAlign:'center',fontSize:11,color:'#d1d5db',marginTop:20}}>Plataforma de Gestion Integral Geinser</p>
       </div>
     </div>
   )
 
-  // PASO 2: Formulario de login
-  const isDirector = rolSelected === 'director'
-  const color = isDirector ? GD : '#065f46'
-  const borderColor = isDirector ? GB : '#059669'
-  const inp = {width:'100%',padding:'10px 14px',border:'1.5px solid #e5e7eb',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}
+  const isDirector=rolSelected==='director'
+  const color=isDirector?GD:'#065f46'
+  const borderColor=isDirector?GB:'#059669'
+  const inp={width:'100%',padding:'10px 14px',border:'1.5px solid #e5e7eb',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}
+
+  if(magicSent) return(
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
+      <div style={{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',textAlign:'center'}}>
+        <Logo/>
+        <div style={{fontSize:40,marginBottom:16}}>📧</div>
+        <h2 style={{color:GD,marginBottom:8,fontSize:18}}>Revisa tu correo</h2>
+        <p style={{color:'#6b7280',fontSize:13,marginBottom:20}}>Enviamos un enlace de acceso a<br/><strong>{email}</strong></p>
+        <p style={{color:'#9ca3af',fontSize:12}}>Haz clic en el enlace del correo para ingresar directamente, sin necesidad de contrasena.</p>
+        <button onClick={()=>{setMagicSent(false);setStep('rol')}} style={{marginTop:20,background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:12,textDecoration:'underline'}}>Volver</button>
+      </div>
+    </div>
+  )
 
   return(
     <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
@@ -80,7 +103,7 @@ export default function Login(){
           <div style={{marginBottom:16}}>
             <label style={{display:'block',fontSize:12,fontWeight:700,color:'#374151',marginBottom:6}}>Correo electronico</label>
             <input type="email" required value={email} onChange={e=>setEmail(e.target.value)}
-              placeholder="correo@geinser.com" style={inp}/>
+              placeholder="correo@ejemplo.com" style={inp}/>
           </div>
           <div style={{marginBottom:8}}>
             <label style={{display:'block',fontSize:12,fontWeight:700,color:'#374151',marginBottom:6}}>Contrasena</label>
@@ -93,7 +116,14 @@ export default function Login(){
             {loading?'Ingresando...':isDirector?'Ingresar como Director':'Ingresar como Delegado'}
           </button>
         </form>
-        <p style={{textAlign:'center',fontSize:11,color:'#9ca3af',marginTop:20}}>Plataforma de Gestion Integral · Geinser</p>
+        <div style={{textAlign:'center',marginTop:16}}>
+          <span style={{fontSize:12,color:'#9ca3af'}}>¿Primera vez? </span>
+          <button onClick={handleMagicLink} disabled={!email||loading}
+            style={{background:'none',border:'none',fontSize:12,color:borderColor,cursor:'pointer',fontWeight:700,textDecoration:'underline'}}>
+            Recibir enlace por correo
+          </button>
+        </div>
+        <p style={{textAlign:'center',fontSize:11,color:'#9ca3af',marginTop:16}}>Plataforma de Gestion Integral Geinser</p>
       </div>
     </div>
   )
