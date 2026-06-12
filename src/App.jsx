@@ -27,3 +27,4 @@ export default function App() {
     </AuthProvider>
   )
 }
+// v1.0 - Login + Dashboard + Supabase conectado
