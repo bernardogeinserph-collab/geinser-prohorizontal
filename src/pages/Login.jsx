@@ -4,127 +4,143 @@ import{useNavigate}from'react-router-dom'
 import{supabase}from'../lib/supabase'
 
 export default function Login(){
-  const[step,setStep]=useState('rol')
-  const[rolSelected,setRolSelected]=useState(null)
-  const[email,setEmail]=useState('')
-  const[password,setPassword]=useState('')
-  const[error,setError]=useState('')
-  const[loading,setLoading]=useState(false)
-  const[magicSent,setMagicSent]=useState(false)
-  const{signIn}=useAuth()
-  const navigate=useNavigate()
+const[step,setStep]=useState('rol')
+const[rolSelected,setRolSelected]=useState(null)
+const[email,setEmail]=useState('')
+const[password,setPassword]=useState('')
+const[error,setError]=useState('')
+const[loading,setLoading]=useState(false)
+const[magicSent,setMagicSent]=useState(false)
+const[recoveryMode,setRecoveryMode]=useState(false)
+const[recoverySent,setRecoverySent]=useState(false)
+const{signIn}=useAuth()
+const navigate=useNavigate()
 
-  async function handleSubmit(e){
-    e.preventDefault();setLoading(true);setError('')
-    const{error:err}=await signIn(email,password)
-    if(err){setError('Correo o contrasena incorrectos');setLoading(false)}
-    else navigate('/')
-  }
+async function handleSubmit(e){
+e.preventDefault();setLoading(true);setError('')
+const{error:err}=await signIn(email,password)
+if(err){setError('Correo o contraseña incorrectos');setLoading(false)}
+else navigate('/')
+}
 
-  async function handleMagicLink(e){
-    e.preventDefault();setLoading(true);setError('')
-    const{error:err}=await supabase.auth.signInWithOtp({
-      email,
-      options:{shouldCreateUser:true, data:{nombre:'Bernardo Director',rol:'director'}}
-    })
-    if(err){setError('Error al enviar enlace: '+err.message);setLoading(false)}
-    else{setMagicSent(true);setLoading(false)}
-  }
+async function handleMagicLink(e){
+e.preventDefault();setLoading(true);setError('')
+const{error:err}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}})
+if(err){setError('Error enviando el enlace');setLoading(false)}
+else{setMagicSent(true);setLoading(false)}
+}
 
-  const GD='#0d2d4a',GB='#1e6fae',GG='#c9a227'
+async function handleRecovery(e){
+e.preventDefault();setLoading(true);setError('')
+const{error:err}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+'/reset-password'})
+if(err){setError('Error enviando el correo');setLoading(false)}
+else{setRecoverySent(true);setLoading(false)}
+}
 
-  const Logo=()=>(
-    <div style={{textAlign:'center',marginBottom:28}}>
-      <svg width="52" height="52" viewBox="0 0 64 64" style={{margin:'0 auto 10px',display:'block'}}>
-        <rect width="64" height="64" rx="14" fill={GB}/>
-        <text x="32" y="44" textAnchor="middle" fill={GG} fontSize="28" fontWeight="900" fontFamily="Arial">G</text>
-      </svg>
-      <div style={{fontSize:22,fontWeight:900,color:GD}}>GEINSER</div>
-      <div style={{fontSize:11,color:GG,fontWeight:700,letterSpacing:4}}>PROHORIZONTAL</div>
-    </div>
-  )
+const GB='#1e6fae',GD='#0d2d4a',GG='#c9a227'
+const inp={width:'100%',padding:'12px 14px',border:'1.5px solid #e5e7eb',borderRadius:12,fontSize:14,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}
 
-  if(step==='rol') return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
-      <div style={{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-        <Logo/>
-        <p style={{textAlign:'center',fontSize:13,color:'#6b7280',marginBottom:24}}>Selecciona tu tipo de acceso</p>
-        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,marginBottom:8}}>
-          <button onClick={()=>{setRolSelected('director');setStep('form')}}
-            style={{background:'#f0f7ff',border:'2px solid '+GB,borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center'}}>
-            <div style={{fontSize:28,marginBottom:8}}>🏢</div>
-            <div style={{fontWeight:900,color:GD,fontSize:14}}>Director</div>
-            <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>Gestion integral de todas las copropiedades</div>
-          </button>
-          <button onClick={()=>{setRolSelected('delegado');setStep('form')}}
-            style={{background:'#f0f9f4',border:'2px solid #059669',borderRadius:14,padding:'20px 12px',cursor:'pointer',textAlign:'center'}}>
-            <div style={{fontSize:28,marginBottom:8}}>👤</div>
-            <div style={{fontWeight:900,color:'#065f46',fontSize:14}}>Delegado</div>
-            <div style={{fontSize:11,color:'#6b7280',marginTop:4}}>Acceso a copropiedades asignadas</div>
-          </button>
-        </div>
-        <p style={{textAlign:'center',fontSize:11,color:'#d1d5db',marginTop:20}}>Plataforma de Gestion Integral Geinser</p>
-      </div>
-    </div>
-  )
+if(step==='rol')return(
+<div style={{minHeight:'100vh',background:GD,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+<div style={{background:'#fff',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+<div style={{textAlign:'center',marginBottom:32}}>
+<div style={{background:GB,borderRadius:16,width:64,height:64,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}><span style={{fontSize:34,fontWeight:900,color:GG}}>G</span></div>
+<div style={{fontSize:24,fontWeight:900,color:GD,letterSpacing:1}}>GEINSER</div>
+<div style={{fontSize:10,fontWeight:700,color:GG,letterSpacing:4,marginTop:2}}>PROHORIZONTAL</div>
+<p style={{fontSize:14,color:'#6b7280',marginTop:12}}>Selecciona tu tipo de acceso</p>
+</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:8}}>
+{[{rol:'director',label:'Director',desc:'Gestión integral de todas las copropiedades',icon:'🏢'},{rol:'delegado',label:'Delegado',desc:'Acceso a copropiedades asignadas',icon:'👤'}].map(({rol,label,desc,icon})=>(
+<button key={rol} onClick={()=>{setRolSelected(rol);setStep('login')}} style={{border:`2px solid ${rolSelected===rol?GB:'#e5e7eb'}`,borderRadius:16,padding:'20px 16px',cursor:'pointer',background:rolSelected===rol?GB+'08':'#fff',textAlign:'center',transition:'all .2s'}}>
+<div style={{fontSize:32,marginBottom:8}}>{icon}</div>
+<div style={{fontWeight:800,color:GD,fontSize:15,marginBottom:4}}>{label}</div>
+<div style={{fontSize:12,color:'#6b7280',lineHeight:1.4}}>{desc}</div>
+</button>
+))}
+</div>
+<p style={{textAlign:'center',fontSize:12,color:'#9ca3af',marginTop:16}}>Plataforma de Gestión Integral Geinser</p>
+</div>
+</div>
+)
 
-  const isDirector=rolSelected==='director'
-  const color=isDirector?GD:'#065f46'
-  const borderColor=isDirector?GB:'#059669'
-  const inp={width:'100%',padding:'10px 14px',border:'1.5px solid #e5e7eb',borderRadius:10,fontSize:14,outline:'none',boxSizing:'border-box'}
+// ---- MODO RECUPERAR CONTRASEÑA ----
+if(recoveryMode)return(
+<div style={{minHeight:'100vh',background:GD,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+<div style={{background:'#fff',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+<div style={{textAlign:'center',marginBottom:28}}>
+<div style={{background:GB,borderRadius:16,width:56,height:56,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}><span style={{fontSize:28,fontWeight:900,color:GG}}>G</span></div>
+<div style={{fontSize:20,fontWeight:900,color:GD}}>Recuperar contraseña</div>
+<p style={{fontSize:13,color:'#6b7280',marginTop:8,lineHeight:1.5}}>Ingresa tu correo y te enviaremos un enlace para crear una nueva contraseña.</p>
+</div>
+{recoverySent?(
+<div style={{background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:14,padding:20,textAlign:'center',marginBottom:20}}>
+<div style={{fontSize:32,marginBottom:8}}>📧</div>
+<div style={{fontWeight:800,color:'#065f46',fontSize:15,marginBottom:6}}>¡Correo enviado!</div>
+<p style={{fontSize:13,color:'#047857',lineHeight:1.5}}>Revisa tu bandeja de entrada en <b>{email}</b>. El enlace es válido por 60 minutos.</p>
+</div>
+):(
+<form onSubmit={handleRecovery}>
+<div style={{marginBottom:16}}>
+<label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',marginBottom:6}}>Correo electrónico</label>
+<input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@ejemplo.com" required/>
+</div>
+{error&&<div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:10,padding:'10px 14px',color:'#dc2626',fontSize:13,marginBottom:14}}>{error}</div>}
+<button type="submit" disabled={loading} style={{width:'100%',background:loading?'#9ca3af':GB,color:'#fff',border:'none',borderRadius:12,padding:'13px',fontWeight:800,fontSize:15,cursor:loading?'not-allowed':'pointer',marginBottom:12}}>
+{loading?'Enviando...':'Enviar enlace de recuperación'}
+</button>
+</form>
+)}
+<button onClick={()=>{setRecoveryMode(false);setRecoverySent(false);setError('')}} style={{width:'100%',background:'#f3f4f6',border:'none',borderRadius:12,padding:'11px',fontWeight:700,fontSize:14,cursor:'pointer',color:'#374151'}}>← Volver al inicio de sesión</button>
+</div>
+</div>
+)
 
-  if(magicSent) return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
-      <div style={{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.3)',textAlign:'center'}}>
-        <Logo/>
-        <div style={{fontSize:40,marginBottom:16}}>📧</div>
-        <h2 style={{color:GD,marginBottom:8,fontSize:18}}>Revisa tu correo</h2>
-        <p style={{color:'#6b7280',fontSize:13,marginBottom:20}}>Enviamos un enlace de acceso a<br/><strong>{email}</strong></p>
-        <p style={{color:'#9ca3af',fontSize:12}}>Haz clic en el enlace del correo para ingresar directamente, sin necesidad de contrasena.</p>
-        <button onClick={()=>{setMagicSent(false);setStep('rol')}} style={{marginTop:20,background:'none',border:'none',color:'#9ca3af',cursor:'pointer',fontSize:12,textDecoration:'underline'}}>Volver</button>
-      </div>
-    </div>
-  )
-
-  return(
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}>
-      <div style={{background:'#fff',borderRadius:20,padding:'40px 36px',width:'100%',maxWidth:400,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-        <Logo/>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:20}}>
-          <div style={{background:isDirector?'#e8f4fd':'#e6f9f0',border:'1.5px solid '+borderColor,borderRadius:20,padding:'4px 14px',fontSize:12,fontWeight:700,color}}>
-            {isDirector?'🏢 Director':'👤 Delegado'}
-          </div>
-          <button onClick={()=>{setStep('rol');setError('');setEmail('');setPassword('')}}
-            style={{background:'none',border:'none',fontSize:11,color:'#9ca3af',cursor:'pointer',textDecoration:'underline'}}>
-            Cambiar
-          </button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div style={{marginBottom:16}}>
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#374151',marginBottom:6}}>Correo electronico</label>
-            <input type="email" required value={email} onChange={e=>setEmail(e.target.value)}
-              placeholder="correo@ejemplo.com" style={inp}/>
-          </div>
-          <div style={{marginBottom:8}}>
-            <label style={{display:'block',fontSize:12,fontWeight:700,color:'#374151',marginBottom:6}}>Contrasena</label>
-            <input type="password" required value={password} onChange={e=>setPassword(e.target.value)}
-              placeholder="••••••••" style={inp}/>
-          </div>
-          {error&&<div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:8,padding:'8px 12px',fontSize:12,color:'#dc2626',marginBottom:12}}>{error}</div>}
-          <button type="submit" disabled={loading}
-            style={{width:'100%',background:loading?'#9ca3af':color,color:'#fff',border:'none',borderRadius:12,padding:13,fontWeight:800,fontSize:15,cursor:loading?'not-allowed':'pointer',marginTop:8}}>
-            {loading?'Ingresando...':isDirector?'Ingresar como Director':'Ingresar como Delegado'}
-          </button>
-        </form>
-        <div style={{textAlign:'center',marginTop:16}}>
-          <span style={{fontSize:12,color:'#9ca3af'}}>¿Primera vez? </span>
-          <button onClick={handleMagicLink} disabled={!email||loading}
-            style={{background:'none',border:'none',fontSize:12,color:borderColor,cursor:'pointer',fontWeight:700,textDecoration:'underline'}}>
-            Recibir enlace por correo
-          </button>
-        </div>
-        <p style={{textAlign:'center',fontSize:11,color:'#9ca3af',marginTop:16}}>Plataforma de Gestion Integral Geinser</p>
-      </div>
-    </div>
-  )
+// ---- MODO LOGIN NORMAL ----
+return(
+<div style={{minHeight:'100vh',background:GD,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+<div style={{background:'#fff',borderRadius:24,padding:'40px 36px',width:'100%',maxWidth:420,boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
+<div style={{textAlign:'center',marginBottom:28}}>
+<div style={{background:GB,borderRadius:16,width:56,height:56,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}><span style={{fontSize:28,fontWeight:900,color:GG}}>G</span></div>
+<div style={{fontSize:20,fontWeight:900,color:GD}}>GEINSER PROHORIZONTAL</div>
+<div style={{display:'inline-flex',alignItems:'center',gap:8,background:GB+'12',borderRadius:20,padding:'6px 14px',marginTop:10}}>
+<span style={{fontSize:18}}>{rolSelected==='director'?'🏢':'👤'}</span>
+<span style={{fontSize:13,fontWeight:700,color:GB}}>{rolSelected==='director'?'Director':'Delegado'}</span>
+<button onClick={()=>setStep('rol')} style={{fontSize:11,color:'#9ca3af',background:'none',border:'none',cursor:'pointer',marginLeft:4,fontWeight:700}}>Cambiar</button>
+</div>
+</div>
+{magicSent?(
+<div style={{background:'#f0fdf4',border:'1.5px solid #bbf7d0',borderRadius:14,padding:20,textAlign:'center',marginBottom:20}}>
+<div style={{fontSize:32,marginBottom:8}}>✅</div>
+<div style={{fontWeight:800,color:'#065f46',fontSize:15,marginBottom:6}}>¡Enlace enviado!</div>
+<p style={{fontSize:13,color:'#047857',lineHeight:1.5}}>Revisa tu correo <b>{email}</b> y haz clic en el enlace para ingresar sin contraseña.</p>
+</div>
+):(
+<form onSubmit={handleSubmit}>
+<div style={{marginBottom:14}}>
+<label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',marginBottom:6}}>Correo electrónico</label>
+<input style={inp} type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="correo@ejemplo.com" required/>
+</div>
+<div style={{marginBottom:6}}>
+<label style={{display:'block',fontSize:13,fontWeight:700,color:'#374151',marginBottom:6}}>Contraseña</label>
+<input style={inp} type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" required/>
+</div>
+<div style={{textAlign:'right',marginBottom:18}}>
+<button type="button" onClick={()=>{setRecoveryMode(true);setError('');setPassword('')}} style={{fontSize:12,color:GB,background:'none',border:'none',cursor:'pointer',fontWeight:700,textDecoration:'underline'}}>¿Olvidaste tu contraseña?</button>
+</div>
+{error&&<div style={{background:'#fef2f2',border:'1px solid #fca5a5',borderRadius:10,padding:'10px 14px',color:'#dc2626',fontSize:13,marginBottom:14}}>{error}</div>}
+<button type="submit" disabled={loading} style={{width:'100%',background:loading?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:12,padding:'13px',fontWeight:800,fontSize:15,cursor:loading?'not-allowed':'pointer',marginBottom:12}}>
+{loading?'Ingresando...':rolSelected==='director'?'Ingresar como Director':'Ingresar como Delegado'}
+</button>
+</form>
+)}
+{!magicSent&&<div style={{textAlign:'center',marginTop:4}}>
+<p style={{fontSize:12,color:'#9ca3af',marginBottom:8}}>¿Primera vez? <span style={{fontWeight:700,color:'#374151'}}>Acceso sin contraseña:</span></p>
+<button onClick={handleMagicLink} disabled={loading||!email} style={{width:'100%',background:'#f3f4f6',border:'1.5px solid #e5e7eb',borderRadius:12,padding:'11px',fontWeight:700,fontSize:13,cursor:loading||!email?'not-allowed':'pointer',color:'#374151',opacity:!email?0.5:1}}>
+📧 Recibir enlace por correo
+</button>
+</div>}
+<p style={{textAlign:'center',fontSize:11,color:'#9ca3af',marginTop:20}}>Plataforma de Gestión Integral Geinser</p>
+</div>
+</div>
+)
 }
