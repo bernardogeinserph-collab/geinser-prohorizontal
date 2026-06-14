@@ -2,7 +2,7 @@ import{useState,useEffect}from'react'
 import{useAuth}from'../context/AuthContext'
 import{useTable}from'../hooks/useSupabase'
 import{supabase}from'../lib/supabase'
-import{Building2,Users,Briefcase,Shield,CheckSquare,Wrench,TrendingUp,LogOut,Plus,Edit2,Trash2,X,CheckCircle,AlertTriangle,ArrowLeft,UserPlus,Bell,Camera,Download,MessageSquare,Zap,HardHat,FileSearch,ChevronRight,Menu,Home}from'lucide-react'
+import{Building2,Users,Briefcase,Shield,CheckSquare,Wrench,TrendingUp,LogOut,Plus,Edit2,Trash2,X,CheckCircle,AlertTriangle,ArrowLeft,UserPlus,Bell,Camera,Download,MessageSquare,Zap,HardHat,FileSearch,ChevronRight,Menu}from'lucide-react'
 const GB='#1e6fae',GD='#0d2d4a',GG='#c9a227'
 const fmt=d=>d?new Date(d+'T00:00:00').toLocaleDateString('es-CO',{day:'2-digit',month:'short',year:'numeric'}):'—'
 const fmtM=v=>{const n=Number(v)||0;if(n>=1000000)return'$'+(n/1000000).toFixed(1)+'M';if(n>=1000)return'$'+Math.round(n/1000)+'K';return'$'+n.toLocaleString('es-CO')}
@@ -352,7 +352,7 @@ const goTab=(k)=>{setTab(k);setMenuOpen(false)}
 const goSub=(k)=>{setSubTab(k);setMasOpen(false);setMenuOpen(false)}
 // ---- MENÚ LATERAL DESKTOP ----
 const SidebarDesktop=()=>(<div style={{width:220,background:GD,height:'100vh',position:'fixed',left:0,top:0,zIndex:200,display:'flex',flexDirection:'column'}}>
-<div style={{padding:'16px 18px 12px',borderBottom:'1px solid rgba(255,255,255,0.1)'}}><div style={{display:'flex',alignItems:'center',gap:12}}><div style={{background:GB,borderRadius:12,width:46,height:46,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><span style={{fontSize:26,fontWeight:900,color:GG}}>G</span></div><div><div style={{fontSize:16,fontWeight:900,color:'#fff',letterSpacing:'1px'}}>GEINSER</div><div style={{fontSize:9,fontWeight:700,color:GG,letterSpacing:'3px',marginTop:2}}>PROHORIZONTAL</div></div></div></div>
+<div style={{padding:'16px 18px 12px',borderBottom:'1px solid #1a4a6e'}}><svg width="130" height="30" viewBox="0 0 190 50"><rect width="44" height="44" rx="10" fill={GB} y="3"/><text x="22" y="33" textAnchor="middle" fill={GG} fontSize="24" fontWeight="900" fontFamily="Arial">G</text><text x="55" y="24" fill="white" fontSize="16" fontWeight="900" fontFamily="Arial" letterSpacing="1">GEINSER</text><text x="55" y="40" fill={GG} fontSize="9" fontWeight="700" fontFamily="Arial" letterSpacing="3">PROHORIZONTAL</text></svg></div>
 <div style={{padding:'8px 14px',borderBottom:'1px solid rgba(255,255,255,0.08)'}}><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',fontWeight:700}}>{perfil.rol==='director'?'DIRECTOR':'DELEGADO'}</div><div style={{fontSize:12,fontWeight:700,color:'#fff',marginTop:1}}>{perfil.nombre}</div></div>
 {selCop&&<div style={{padding:'8px 14px',borderBottom:'1px solid rgba(255,255,255,0.08)',background:'rgba(30,111,174,0.25)'}}><div style={{fontSize:9,color:'rgba(255,255,255,0.4)',marginBottom:1}}>COPROPIEDAD</div><div style={{fontSize:11,fontWeight:700,color:'#fff',marginBottom:2}}>{selCop.nombre}</div><button onClick={()=>{setSelCop(null);setTab('copropiedades')}} style={{background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:10,cursor:'pointer',padding:0,display:'flex',alignItems:'center',gap:3}}><ArrowLeft size={10}/>Volver</button></div>}
 <nav style={{flex:1,padding:'4px 0',overflowY:'auto'}}>
@@ -365,7 +365,7 @@ const SidebarDesktop=()=>(<div style={{width:220,background:GD,height:'100vh',po
 const TopBarMobile=()=>(<div style={{background:GD,padding:'0 16px',height:52,display:'flex',alignItems:'center',justifyContent:'space-between',position:'fixed',top:0,left:0,right:0,zIndex:300}}>
 <div style={{display:'flex',alignItems:'center',gap:10}}>
 {selCop&&<button onClick={()=>{setSelCop(null);setTab('copropiedades')}} style={{background:'rgba(255,255,255,0.1)',border:'none',borderRadius:8,padding:'6px 8px',cursor:'pointer',color:'#fff',display:'flex',alignItems:'center'}}><ArrowLeft size={16}/></button>}
-<div style={{display:'flex',alignItems:'center',gap:8}}><div style={{background:GB,borderRadius:8,width:34,height:34,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><span style={{fontSize:20,fontWeight:900,color:GG}}>G</span></div><div><div style={{fontSize:13,fontWeight:900,color:'#fff',letterSpacing:'1px'}}>GEINSER</div><div style={{fontSize:7,fontWeight:700,color:GG,letterSpacing:'2px',marginTop:2}}>PROHORIZONTAL</div></div></div>
+<svg width="90" height="22" viewBox="0 0 190 50"><rect width="44" height="44" rx="10" fill={GB} y="3"/><text x="22" y="33" textAnchor="middle" fill={GG} fontSize="24" fontWeight="900" fontFamily="Arial">G</text><text x="55" y="24" fill="white" fontSize="16" fontWeight="900" fontFamily="Arial" letterSpacing="1">GEINSER</text><text x="55" y="40" fill={GG} fontSize="9" fontWeight="700" fontFamily="Arial" letterSpacing="3">PROHORIZONTAL</text></svg>
 </div>
 <div style={{display:'flex',alignItems:'center',gap:8}}>
 {selCop&&<span style={{color:'rgba(255,255,255,0.7)',fontSize:12,fontWeight:700,maxWidth:120,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{selCop.nombre}</span>}
