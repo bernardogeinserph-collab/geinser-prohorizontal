@@ -6,6 +6,7 @@ export function AuthProvider({children}){
   const[perfil,setPerfil]=useState(null)
   const[loading,setLoading]=useState(true)
   const fetchedUid=useRef(null)
+  const signOutTimer=useRef(null)
   useEffect(()=>{
     supabase.auth.getSession().then(({data:{session}})=>{
       setUser(session?.user??null)
@@ -14,6 +15,14 @@ export function AuthProvider({children}){
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange((event,session)=>{
       if(event==='TOKEN_REFRESHED')return
+      if(event==='SIGNED_OUT'){
+        signOutTimer.current=setTimeout(()=>{
+          fetchedUid.current=null
+          setUser(null);setPerfil(null);setLoading(false)
+        },4000)
+        return
+      }
+      if(signOutTimer.current){clearTimeout(signOutTimer.current);signOutTimer.current=null}
       setUser(session?.user??null)
       if(session?.user){
         if(session.user.id!==fetchedUid.current)fetchPerfil(session.user.id)
@@ -22,7 +31,10 @@ export function AuthProvider({children}){
         setPerfil(null);setLoading(false)
       }
     })
-    return()=>subscription.unsubscribe()
+    return()=>{
+      subscription.unsubscribe()
+      if(signOutTimer.current)clearTimeout(signOutTimer.current)
+    }
   },[])
   async function fetchPerfil(uid){
     fetchedUid.current=uid
@@ -33,7 +45,12 @@ export function AuthProvider({children}){
     const{error}=await supabase.auth.signInWithPassword({email,password})
     return{error}
   }
-  async function signOut(){fetchedUid.current=null;await supabase.auth.signOut();setPerfil(null)}
+  async function signOut(){
+    if(signOutTimer.current){clearTimeout(signOutTimer.current);signOutTimer.current=null}
+    fetchedUid.current=null
+    await supabase.auth.signOut()
+    setPerfil(null)
+  }
   return <AuthContext.Provider value={{user,perfil,loading,signIn,signOut}}>{children}</AuthContext.Provider>
 }
 export const useAuth=()=>useContext(AuthContext)
