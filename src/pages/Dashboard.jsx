@@ -13,6 +13,71 @@ function F({label,children,req}){return(<div style={{marginBottom:12}}><label st
 function Toast({msg,type}){return(<div style={{position:'fixed',bottom:80,right:16,background:type==='success'?'#065f46':'#991b1b',color:'#fff',borderRadius:12,padding:'12px 20px',fontWeight:700,fontSize:14,zIndex:9999,display:'flex',alignItems:'center',gap:8,maxWidth:'90vw'}}>{type==='success'?<CheckCircle size={16}/>:<AlertTriangle size={16}/>}{msg}</div>)}
 function Modal({title,onClose,children,wide}){return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0'}} onClick={onClose}><div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:24,width:'100%',maxWidth:720,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}><h2 style={{margin:0,fontSize:18,fontWeight:800,color:GD}}>{title}</h2><button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:'50%',width:32,height:32,cursor:'pointer'}}><X size={16}/></button></div>{children}</div></div>)}
 function Bdg({t,color,bg}){return <span style={{background:bg||color+'18',color,fontSize:10,borderRadius:20,padding:'2px 9px',fontWeight:700,whiteSpace:'nowrap'}}>{t}</span>}
+
+function PanelControl({onSelect}){
+const[cops,setCops]=useState([]);const[tareas,setTareas]=useState([]);const[perfiles,setPerfiles]=useState([]);const[loading,setLoading]=useState(true)
+useEffect(()=>{(async()=>{
+const[rc,rt,rp]=await Promise.all([
+supabase.from('copropiedades').select('*').order('nombre'),
+supabase.from('tareas').select('id,copropiedad_id,estado,progreso,fecha_limite,historial,titulo'),
+supabase.from('perfiles').select('id,nombre,rol,activo')
+])
+setCops(rc.data||[]);setTareas(rt.data||[]);setPerfiles(rp.data||[]);setLoading(false)
+})()},[])
+const hoy=new Date();hoy.setHours(0,0,0,0)
+const esVenc=t=>t.fecha_limite&&new Date(t.fecha_limite+'T00:00:00')<hoy&&t.estado!=='Completada'&&t.estado!=='Cancelada'
+const resumen=cops.map(cop=>{
+const ts=tareas.filter(t=>t.copropiedad_id===cop.id)
+const activas=ts.filter(t=>t.estado!=='Completada'&&t.estado!=='Cancelada')
+const vencidas=ts.filter(esVenc)
+const completadas=ts.filter(t=>t.estado==='Completada')
+const avance=ts.length?Math.round(ts.reduce((s,t)=>s+(Number(t.progreso)||0),0)/ts.length):0
+let ultAct=null
+ts.forEach(t=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(!ultAct||h.fecha>ultAct.fecha)ultAct={...h,tarea:t.titulo}})})
+const delegado=perfiles.find(p=>p.id===cop.delegado_id)
+const sem=vencidas.length>0?'#dc2626':activas.length>0&&avance<50?'#d97706':'#059669'
+return{cop,delegado,activas:activas.length,vencidas:vencidas.length,completadas:completadas.length,total:ts.length,avance,ultAct,sem}
+})
+const gTot={
+edificios:cops.length,
+delegados:perfiles.filter(p=>p.rol==='delegado'&&p.activo).length,
+activas:tareas.filter(t=>t.estado!=='Completada'&&t.estado!=='Cancelada').length,
+vencidas:tareas.filter(esVenc).length
+}
+if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando panel...</div>
+return(<div>
+<h2 style={{margin:'0 0 4px',fontSize:20,fontWeight:900,color:GD}}>Panel de Control</h2>
+<p style={{margin:'0 0 18px',fontSize:13,color:'#6b7280'}}>Seguimiento ejecutivo de la gestion por copropiedad</p>
+<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:22}}>
+<div style={{background:'linear-gradient(135deg,#0d2d4a,#1e6fae)',borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:'#fff'}}>{gTot.edificios}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:700}}>COPROPIEDADES</div></div>
+<div style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:GB}}>{gTot.delegados}</div><div style={{fontSize:11,color:'#6b7280',fontWeight:700}}>DELEGADOS</div></div>
+<div style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:'#d97706'}}>{gTot.activas}</div><div style={{fontSize:11,color:'#6b7280',fontWeight:700}}>TAREAS ACTIVAS</div></div>
+<div style={{background:'#fff',border:'1.5px solid '+(gTot.vencidas>0?'#fca5a5':'#e5e7eb'),borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:gTot.vencidas>0?'#dc2626':'#9ca3af'}}>{gTot.vencidas}</div><div style={{fontSize:11,color:'#6b7280',fontWeight:700}}>VENCIDAS</div></div>
+</div>
+<div style={{display:'flex',flexDirection:'column',gap:12}}>
+{resumen.map(r=>(<div key={r.cop.id} onClick={()=>onSelect(r.cop)} style={{background:'#fff',border:'1.5px solid #e5e7eb',borderLeft:'5px solid '+r.sem,borderRadius:14,padding:'14px 18px',cursor:'pointer',display:'flex',flexWrap:'wrap',gap:14,alignItems:'center',boxShadow:'0 1px 3px rgba(0,0,0,0.04)'}}>
+<div style={{flex:'1 1 200px',minWidth:0}}>
+<div style={{fontWeight:900,color:GD,fontSize:15}}>{r.cop.nombre}</div>
+<div style={{fontSize:12,color:'#6b7280',display:'flex',alignItems:'center',gap:5,marginTop:2}}><Users size={12}/>{r.delegado?r.delegado.nombre:'Sin delegado asignado'}</div>
+{r.ultAct&&<div style={{fontSize:11,color:'#9ca3af',marginTop:4}}>Ultima gestion: {r.ultAct.nota?.substring(0,45)}{r.ultAct.nota?.length>45?'...':''} · {new Date(r.ultAct.fecha).toLocaleDateString('es-CO',{day:'2-digit',month:'short'})}</div>}
+{!r.ultAct&&r.total===0&&<div style={{fontSize:11,color:'#d1d5db',marginTop:4}}>Sin tareas registradas</div>}
+</div>
+<div style={{display:'flex',gap:16,alignItems:'center'}}>
+<div style={{textAlign:'center'}}><div style={{fontSize:17,fontWeight:900,color:GB}}>{r.activas}</div><div style={{fontSize:9,color:'#9ca3af',fontWeight:700}}>ACTIVAS</div></div>
+<div style={{textAlign:'center'}}><div style={{fontSize:17,fontWeight:900,color:r.vencidas>0?'#dc2626':'#d1d5db'}}>{r.vencidas}</div><div style={{fontSize:9,color:'#9ca3af',fontWeight:700}}>VENCIDAS</div></div>
+<div style={{textAlign:'center'}}><div style={{fontSize:17,fontWeight:900,color:'#059669'}}>{r.completadas}</div><div style={{fontSize:9,color:'#9ca3af',fontWeight:700}}>LISTAS</div></div>
+<div style={{width:110}}>
+<div style={{display:'flex',justifyContent:'space-between',marginBottom:3}}><span style={{fontSize:9,color:'#9ca3af',fontWeight:700}}>AVANCE</span><span style={{fontSize:11,fontWeight:900,color:GD}}>{r.avance}%</span></div>
+<div style={{background:'#e5e7eb',borderRadius:99,height:7}}><div style={{background:r.sem,borderRadius:99,height:7,width:r.avance+'%'}}/></div>
+</div>
+<ChevronRight size={16} color="#9ca3af"/>
+</div>
+</div>))}
+</div>
+{cops.length===0&&<div style={{textAlign:'center',padding:50,color:'#9ca3af'}}>No hay copropiedades registradas</div>}
+</div>)
+}
+
 function MiPerfil({perfil}){
 const[pass1,setPass1]=useState('');const[pass2,setPass2]=useState('');const[saving,setSaving]=useState(false)
 const[toast,setToast]=useState(null);const showT=(m,tp='success')=>{setToast({msg:m,type:tp});setTimeout(()=>setToast(null),3500)}
@@ -493,6 +558,7 @@ return(<div>
 export default function Dashboard(){
 const{perfil,signOut}=useAuth()
 const[tab,setTab]=useState('copropiedades')
+useEffect(()=>{if(perfil?.rol==='director')setTab('panel')},[perfil?.rol])
 const[selCop,setSelCop]=useState(null)
 const[subTab,setSubTab]=useState('contratos')
 const[menuOpen,setMenuOpen]=useState(false)
@@ -502,7 +568,7 @@ useEffect(()=>{const fn=()=>setMobile(isMob());window.addEventListener('resize',
 const{data:cops}=useTable('copropiedades')
 const{data:perfiles}=useTable('perfiles')
 if(!perfil)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}><div style={{color:'rgba(255,255,255,0.6)'}}>Cargando...</div></div>
-const menuItems=[{key:'copropiedades',label:'Copropiedades',icon:Building2},...(perfil.rol==='director'?[{key:'alertas',label:'Alertas',icon:Bell},{key:'delegados',label:'Delegados',icon:Users}]:[]),{key:'miperfil',label:'Mi Perfil',icon:UserCog}]
+const menuItems=[...(perfil.rol==='director'?[{key:'panel',label:'Panel de Control',icon:TrendingUp}]:[]),{key:'copropiedades',label:'Copropiedades',icon:Building2},...(perfil.rol==='director'?[{key:'alertas',label:'Alertas',icon:Bell},{key:'delegados',label:'Delegados',icon:Users}]:[]),{key:'miperfil',label:'Mi Perfil',icon:UserCog}]
 const subItemsTop=[{key:'contratos',label:'Contratos',icon:Briefcase,color:'#7c3aed'},{key:'tareas',label:'Tareas',icon:CheckSquare,color:GB},{key:'mantenimiento',label:'Mantenimiento',icon:Wrench,color:'#059669'}]
 const subItemsMas=[{key:'cartera',label:'Cartera',icon:TrendingUp,color:'#dc2626'},{key:'sgsst',label:'SG-SST',icon:Shield,color:'#0891b2'},{key:'pqrs',label:'PQRs',icon:MessageSquare,color:'#e53e3e'},{key:'servicios',label:'Servicios Pub.',icon:Zap,color:'#f59e0b'},{key:'obras',label:'Obras',icon:HardDrive,color:'#f97316'},{key:'cotizaciones',label:'Cotizaciones',icon:Search,color:'#8b5cf6'}]
 const allSubItems=[...subItemsTop,...subItemsMas]
@@ -575,10 +641,11 @@ return(<div style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',b
 }
 // ---- RENDER ----
 const ContentArea=()=>(<div style={{flex:1,padding:mobile?'16px':24,overflowY:'auto',paddingBottom:mobile&&selCop?'80px':'24px'}}>
+{!selCop&&tab==='panel'&&perfil.rol==='director'&&<PanelControl onSelect={ct=>{setSelCop(ct);setSubTab('tareas')}}/>}
 {!selCop&&tab==='copropiedades'&&<Copropiedades perfil={perfil} onSelect={ct=>{setSelCop(ct);setSubTab('contratos')}}/>}
 {!selCop&&tab==='alertas'&&<Alertas/>}
 {!selCop&&tab==='delegados'&&perfil.rol==='director'&&<DelegadosPanel/>}
-{!selCop&&tab==='miperfil'&&<MiPerfil perfil={perfil}/>} {!selCop&&tab==='miperfil'&&<MiPerfil perfil={perfil}/>}
+{!selCop&&tab==='miperfil'&&<MiPerfil perfil={perfil}/>}
 {selCop&&subTab==='contratos'&&<Contratos copropiedad={selCop}/>}
 {selCop&&subTab==='tareas'&&<Tareas copropiedad={selCop} perfil={perfil}/>}
 {selCop&&subTab==='mantenimiento'&&<Mantenimiento copropiedad={selCop}/>}
