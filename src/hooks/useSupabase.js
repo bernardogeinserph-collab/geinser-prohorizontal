@@ -16,11 +16,13 @@ export function useTable(tabla,filtros={}){
   async function insert(item){
     const{data:d,error:e}=await supabase.from(tabla).insert(item).select().single()
     if(!e){setData(p=>[d,...p]);return{data:d,error:null}}
+    console.error('INSERT error',tabla,e)
     return{data:null,error:e}
   }
   async function update(id,item){
-    const{data:d,error:e}=await supabase.from(tabla).update({...item,updated_at:new Date().toISOString()}).eq('id',id).select().single()
+    const{data:d,error:e}=await supabase.from(tabla).update(item).eq('id',id).select().single()
     if(!e){setData(p=>p.map(x=>x.id===id?d:x));return{data:d,error:null}}
+    console.error('UPDATE error',tabla,e)
     return{data:null,error:e}
   }
   async function remove(id){
