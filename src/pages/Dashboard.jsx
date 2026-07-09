@@ -16,10 +16,14 @@ function Bdg({t,color,bg}){return <span style={{background:bg||color+'18',color,
 
 function PanelControl({onSelect}){
 const[cops,setCops]=useState([]);const[tareas,setTareas]=useState([]);const[perfiles,setPerfiles]=useState([]);const[loading,setLoading]=useState(true)
+const[showInf,setShowInf]=useState(false);const[tipoInf,setTipoInf]=useState('mes')
+const hoyD=new Date()
+const[mesInf,setMesInf]=useState(hoyD.getMonth());const[anioInf,setAnioInf]=useState(hoyD.getFullYear())
+const[generando,setGenerando]=useState(false)
 useEffect(()=>{(async()=>{
 const[rc,rt,rp]=await Promise.all([
 supabase.from('copropiedades').select('*').order('nombre'),
-supabase.from('tareas').select('id,copropiedad_id,estado,progreso,fecha_limite,historial,titulo'),
+supabase.from('tareas').select('id,copropiedad_id,estado,progreso,fecha_limite,historial,titulo,prioridad,responsable,created_at,descripcion,fotos'),
 supabase.from('perfiles').select('id,nombre,rol,activo')
 ])
 setCops(rc.data||[]);setTareas(rt.data||[]);setPerfiles(rp.data||[]);setLoading(false)
@@ -44,10 +48,75 @@ delegados:perfiles.filter(p=>p.rol==='delegado'&&p.activo).length,
 activas:tareas.filter(t=>t.estado!=='Completada'&&t.estado!=='Cancelada').length,
 vencidas:tareas.filter(esVenc).length
 }
+const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+async function loadPDF(){
+if(window.jspdf?.jsPDF&&window.jspdf.jsPDF.API?.autoTable)return window.jspdf
+if(!window.jspdf)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
+await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
+return window.jspdf
+}
+async function generarInforme(){
+setGenerando(true)
+try{
+const{jsPDF}=await loadPDF()
+const ini=tipoInf==='mes'?new Date(anioInf,mesInf,1):new Date(anioInf,0,1)
+const fin=tipoInf==='mes'?new Date(anioInf,mesInf+1,0,23,59,59):new Date(anioInf,11,31,23,59,59)
+const enP=f=>{if(!f)return false;const d=new Date(f);return d>=ini&&d<=fin}
+const titulo=tipoInf==='mes'?'Informe de Gestion - '+MESES[mesInf]+' '+anioInf:'Informe Consolidado Anual '+anioInf
+const doc=new jsPDF()
+const W=doc.internal.pageSize.getWidth()
+doc.setFillColor(13,45,74);doc.rect(0,0,W,34,'F')
+doc.setTextColor(201,162,39);doc.setFontSize(22);doc.setFont(undefined,'bold');doc.text('GEINSER',14,14)
+doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text('P R O H O R I Z O N T A L',14,19)
+doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text(titulo,14,29)
+doc.setTextColor(120);doc.setFontSize(8);doc.setFont(undefined,'normal')
+doc.text('Generado: '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),W-14,29,{align:'right'})
+let y=44
+const tareasP=tareas.filter(t=>enP(t.created_at)||enP(t.fecha_limite)||(Array.isArray(t.historial)&&t.historial.some(h=>enP(h.fecha))))
+const compP=tareasP.filter(t=>t.estado==='Completada')
+const actividades=tareas.reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
+doc.setTextColor(13,45,74);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text('Resumen Ejecutivo',14,y);y+=3
+doc.autoTable({startY:y,head:[['Copropiedades','Tareas gestionadas','Completadas','Actividades registradas','Fotos subidas']],
+body:[[cops.length,tareasP.length,compP.length,actividades.length,actividades.filter(a=>a.tipo==='foto').length]],
+theme:'grid',headStyles:{fillColor:[30,111,174],fontSize:8},bodyStyles:{fontSize:10,halign:'center',fontStyle:'bold'},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+10
+for(const cop of cops){
+const ts=tareasP.filter(t=>t.copropiedad_id===cop.id)
+if(ts.length===0)continue
+const delegado=perfiles.find(p=>p.id===cop.delegado_id)
+if(y>250){doc.addPage();y=20}
+doc.setFillColor(240,247,255);doc.rect(14,y-4,W-28,9,'F')
+doc.setTextColor(13,45,74);doc.setFontSize(11);doc.setFont(undefined,'bold')
+doc.text(cop.nombre,16,y+2)
+doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(100)
+doc.text('Delegado: '+(delegado?.nombre||'Sin asignar'),W-16,y+2,{align:'right'})
+y+=8
+doc.autoTable({startY:y,
+head:[['Tarea','Estado','Prioridad','Avance','Fecha limite','Responsable']],
+body:ts.map(t=>[t.titulo||'-',t.estado||'-',t.prioridad||'-',(t.progreso||0)+'%',t.fecha_limite?new Date(t.fecha_limite+'T00:00:00').toLocaleDateString('es-CO'):'-',t.responsable||'-']),
+theme:'striped',headStyles:{fillColor:[13,45,74],fontSize:7},bodyStyles:{fontSize:7},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===1){const v=d.cell.raw;if(v==='Completada')d.cell.styles.textColor=[5,150,105];else if(v==='Pendiente')d.cell.styles.textColor=[107,114,128]}}})
+y=doc.lastAutoTable.finalY+4
+const actsC=tareas.filter(t=>t.copropiedad_id===cop.id).reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
+if(actsC.length){
+doc.setFontSize(7);doc.setTextColor(120)
+doc.text('Gestion del periodo: '+actsC.filter(a=>a.tipo==='comentario').length+' comentarios, '+actsC.filter(a=>a.tipo==='foto').length+' fotos, '+actsC.filter(a=>a.tipo==='avance').length+' actualizaciones de avance, '+actsC.filter(a=>a.tipo==='completada').length+' completadas',14,y)
+y+=8}else{y+=4}
+}
+const pages=doc.internal.getNumberOfPages()
+for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(160);doc.text('Geinser Prohorizontal - '+titulo+' - Pag. '+i+' de '+pages,W/2,290,{align:'center'})}
+doc.save((tipoInf==='mes'?'Informe_'+MESES[mesInf]+'_'+anioInf:'Informe_Anual_'+anioInf)+'_Geinser.pdf')
+setShowInf(false)
+}catch(err){alert('Error generando PDF: '+err.message)}
+setGenerando(false)
+}
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando panel...</div>
 return(<div>
-<h2 style={{margin:'0 0 4px',fontSize:20,fontWeight:900,color:GD}}>Panel de Control</h2>
-<p style={{margin:'0 0 18px',fontSize:13,color:'#6b7280'}}>Seguimiento ejecutivo de la gestion por copropiedad</p>
+<div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:10,marginBottom:4}}>
+<div><h2 style={{margin:'0 0 4px',fontSize:20,fontWeight:900,color:GD}}>Panel de Control</h2>
+<p style={{margin:'0 0 14px',fontSize:13,color:'#6b7280'}}>Seguimiento ejecutivo de la gestion por copropiedad</p></div>
+<button onClick={()=>setShowInf(true)} style={{background:'#fff',color:GD,border:'1.5px solid '+GD,borderRadius:12,padding:'9px 16px',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontSize:13}}>📄 Descargar informe PDF</button>
+</div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10,marginBottom:22}}>
 <div style={{background:'linear-gradient(135deg,#0d2d4a,#1e6fae)',borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:'#fff'}}>{gTot.edificios}</div><div style={{fontSize:11,color:'rgba(255,255,255,0.7)',fontWeight:700}}>COPROPIEDADES</div></div>
 <div style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:14,padding:'14px 16px'}}><div style={{fontSize:26,fontWeight:900,color:GB}}>{gTot.delegados}</div><div style={{fontSize:11,color:'#6b7280',fontWeight:700}}>DELEGADOS</div></div>
@@ -75,6 +144,18 @@ return(<div>
 </div>))}
 </div>
 {cops.length===0&&<div style={{textAlign:'center',padding:50,color:'#9ca3af'}}>No hay copropiedades registradas</div>}
+{showInf&&<Modal title="Descargar informe de gestion" onClose={()=>setShowInf(false)}>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<button onClick={()=>setTipoInf('mes')} style={{flex:1,background:tipoInf==='mes'?GB:'#fff',color:tipoInf==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInf==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
+<button onClick={()=>setTipoInf('anio')} style={{flex:1,background:tipoInf==='anio'?GB:'#fff',color:tipoInf==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInf==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Consolidado anual</button>
+</div>
+<div style={{display:'grid',gridTemplateColumns:tipoInf==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
+{tipoInf==='mes'&&<F label="Mes"><select style={inp} value={mesInf} onChange={e=>setMesInf(Number(e.target.value))}>{MESES.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></F>}
+<F label="Año"><select style={inp} value={anioInf} onChange={e=>setAnioInf(Number(e.target.value))}>{[hoyD.getFullYear(),hoyD.getFullYear()-1,hoyD.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
+</div>
+<div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>El informe incluye: resumen ejecutivo, tareas gestionadas por copropiedad, estado y avance de cada una, y las actividades registradas por los delegados en el periodo (comentarios, fotos, avances).</div>
+<button onClick={generarInforme} disabled={generando} style={{width:'100%',background:generando?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:10,padding:12,fontWeight:800,cursor:generando?'wait':'pointer'}}>{generando?'Generando PDF...':'📄 Generar y descargar PDF'}</button>
+</Modal>}
 </div>)
 }
 
