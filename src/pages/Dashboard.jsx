@@ -14,6 +14,88 @@ function Toast({msg,type}){return(<div style={{position:'fixed',bottom:80,right:
 function Modal({title,onClose,children,wide}){return(<div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:2000,display:'flex',alignItems:'flex-end',justifyContent:'center',padding:'0'}} onClick={onClose}><div style={{background:'#fff',borderRadius:'20px 20px 0 0',padding:24,width:'100%',maxWidth:720,maxHeight:'90vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}><div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}><h2 style={{margin:0,fontSize:18,fontWeight:800,color:GD}}>{title}</h2><button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:'50%',width:32,height:32,cursor:'pointer'}}><X size={16}/></button></div>{children}</div></div>)}
 function Bdg({t,color,bg}){return <span style={{background:bg||color+'18',color,fontSize:10,borderRadius:20,padding:'2px 9px',fontWeight:700,whiteSpace:'nowrap'}}>{t}</span>}
 
+const MESES_INF=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
+async function cargarJsPDF(){
+if(window.jspdf?.jsPDF&&window.jspdf.jsPDF.API?.autoTable)return window.jspdf
+if(!window.jspdf)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
+await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
+return window.jspdf
+}
+async function imgData(url){
+try{const r=await fetch(url);const b=await r.blob();return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b)})}catch(e){return null}
+}
+async function genInformePDF({copropiedades,tareas,getDelegado,tipoInf,mesInf,anioInf}){
+const{jsPDF}=await cargarJsPDF()
+const ini=tipoInf==='mes'?new Date(anioInf,mesInf,1):new Date(anioInf,0,1)
+const fin=tipoInf==='mes'?new Date(anioInf,mesInf+1,0,23,59,59):new Date(anioInf,11,31,23,59,59)
+const enP=f=>{if(!f)return false;const d=new Date(f);return d>=ini&&d<=fin}
+const unSolo=copropiedades.length===1
+const titulo=(tipoInf==='mes'?'Informe de Gestion - '+MESES_INF[mesInf]+' '+anioInf:'Informe Consolidado Anual '+anioInf)+(unSolo?' - '+copropiedades[0].nombre:'')
+const doc=new jsPDF()
+const W=doc.internal.pageSize.getWidth()
+doc.setFillColor(13,45,74);doc.rect(0,0,W,34,'F')
+doc.setTextColor(201,162,39);doc.setFontSize(22);doc.setFont(undefined,'bold');doc.text('GEINSER',14,14)
+doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text('P R O H O R I Z O N T A L',14,19)
+doc.setFontSize(unSolo?11:13);doc.setFont(undefined,'bold');doc.text(titulo.substring(0,80),14,29)
+doc.setTextColor(180);doc.setFontSize(8);doc.setFont(undefined,'normal')
+doc.text('Generado: '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),W-14,24,{align:'right'})
+let y=44
+const tareasP=tareas.filter(t=>enP(t.created_at)||enP(t.fecha_limite)||(Array.isArray(t.historial)&&t.historial.some(h=>enP(h.fecha))))
+const compP=tareasP.filter(t=>t.estado==='Completada')
+const actividades=tareas.reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
+doc.setTextColor(13,45,74);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text('Resumen Ejecutivo',14,y);y+=3
+doc.autoTable({startY:y,head:[[...(unSolo?[]:['Copropiedades']),'Tareas gestionadas','Completadas','Actividades','Fotos subidas']],
+body:[[...(unSolo?[]:[copropiedades.length]),tareasP.length,compP.length,actividades.length,actividades.filter(a=>a.tipo==='foto').length]],
+theme:'grid',headStyles:{fillColor:[30,111,174],fontSize:8},bodyStyles:{fontSize:10,halign:'center',fontStyle:'bold'},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+10
+for(const cop of copropiedades){
+const ts=tareasP.filter(t=>t.copropiedad_id===cop.id)
+if(ts.length===0&&!unSolo)continue
+if(y>245){doc.addPage();y=20}
+doc.setFillColor(240,247,255);doc.rect(14,y-4,W-28,9,'F')
+doc.setTextColor(13,45,74);doc.setFontSize(11);doc.setFont(undefined,'bold')
+doc.text(cop.nombre,16,y+2)
+doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(100)
+doc.text('Delegado: '+((getDelegado&&getDelegado(cop))||'Sin asignar'),W-16,y+2,{align:'right'})
+y+=8
+if(ts.length===0){doc.setFontSize(9);doc.setTextColor(150);doc.text('Sin gestion registrada en el periodo',16,y+2);y+=10;continue}
+doc.autoTable({startY:y,
+head:[['Tarea','Estado','Prioridad','Avance','Fecha limite','Responsable']],
+body:ts.map(t=>[t.titulo||'-',t.estado||'-',t.prioridad||'-',(t.progreso||0)+'%',t.fecha_limite?new Date(t.fecha_limite+'T00:00:00').toLocaleDateString('es-CO'):'-',t.responsable||'-']),
+theme:'striped',headStyles:{fillColor:[13,45,74],fontSize:7},bodyStyles:{fontSize:7},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===1){const v=d.cell.raw;if(v==='Completada')d.cell.styles.textColor=[5,150,105];else if(v==='Pendiente')d.cell.styles.textColor=[107,114,128]}}})
+y=doc.lastAutoTable.finalY+4
+const actsC=tareas.filter(t=>t.copropiedad_id===cop.id).reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
+if(actsC.length){doc.setFontSize(7);doc.setTextColor(120)
+doc.text('Gestion del periodo: '+actsC.filter(a=>a.tipo==='comentario').length+' comentarios, '+actsC.filter(a=>a.tipo==='foto').length+' fotos, '+actsC.filter(a=>a.tipo==='avance').length+' avances, '+actsC.filter(a=>a.tipo==='completada').length+' completadas',14,y);y+=6}
+const conFotos=ts.filter(t=>Array.isArray(t.fotos)&&t.fotos.length>0)
+if(conFotos.length){
+doc.setFontSize(9);doc.setTextColor(13,45,74);doc.setFont(undefined,'bold')
+if(y>250){doc.addPage();y=20}
+doc.text('Evidencias fotograficas',14,y+3);y+=7
+doc.setFont(undefined,'normal')
+for(const t of conFotos){
+const fotos=t.fotos.slice(0,4)
+if(y>235){doc.addPage();y=20}
+doc.setFontSize(7);doc.setTextColor(80)
+doc.text('- '+(t.titulo||'').substring(0,70),14,y+2);y+=4
+let x=14
+for(const furl of fotos){
+const d64=await imgData(furl)
+if(d64){try{doc.addImage(d64,'JPEG',x,y,42,30)}catch(e){}}
+x+=46
+if(x>W-46){x=14;y+=34}
+}
+y+=34
+}}
+y+=6
+}
+const pages=doc.internal.getNumberOfPages()
+for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(160);doc.text('Geinser Prohorizontal - Pag. '+i+' de '+pages,W/2,290,{align:'center'})}
+const fname=(tipoInf==='mes'?'Informe_'+MESES_INF[mesInf]+'_'+anioInf:'Informe_Anual_'+anioInf)+(unSolo?'_'+copropiedades[0].nombre.replace(/[^a-zA-Z0-9]/g,'_'):'')+'_Geinser.pdf'
+doc.save(fname)
+}
+
 function PanelControl({onSelect}){
 const[cops,setCops]=useState([]);const[tareas,setTareas]=useState([]);const[perfiles,setPerfiles]=useState([]);const[loading,setLoading]=useState(true)
 const[showInf,setShowInf]=useState(false);const[tipoInf,setTipoInf]=useState('mes')
@@ -48,64 +130,10 @@ delegados:perfiles.filter(p=>p.rol==='delegado'&&p.activo).length,
 activas:tareas.filter(t=>t.estado!=='Completada'&&t.estado!=='Cancelada').length,
 vencidas:tareas.filter(esVenc).length
 }
-const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']
-async function loadPDF(){
-if(window.jspdf?.jsPDF&&window.jspdf.jsPDF.API?.autoTable)return window.jspdf
-if(!window.jspdf)await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
-await new Promise((res,rej)=>{const s=document.createElement('script');s.src='https://unpkg.com/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js';s.onload=res;s.onerror=rej;document.head.appendChild(s)})
-return window.jspdf
-}
 async function generarInforme(){
 setGenerando(true)
 try{
-const{jsPDF}=await loadPDF()
-const ini=tipoInf==='mes'?new Date(anioInf,mesInf,1):new Date(anioInf,0,1)
-const fin=tipoInf==='mes'?new Date(anioInf,mesInf+1,0,23,59,59):new Date(anioInf,11,31,23,59,59)
-const enP=f=>{if(!f)return false;const d=new Date(f);return d>=ini&&d<=fin}
-const titulo=tipoInf==='mes'?'Informe de Gestion - '+MESES[mesInf]+' '+anioInf:'Informe Consolidado Anual '+anioInf
-const doc=new jsPDF()
-const W=doc.internal.pageSize.getWidth()
-doc.setFillColor(13,45,74);doc.rect(0,0,W,34,'F')
-doc.setTextColor(201,162,39);doc.setFontSize(22);doc.setFont(undefined,'bold');doc.text('GEINSER',14,14)
-doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text('P R O H O R I Z O N T A L',14,19)
-doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text(titulo,14,29)
-doc.setTextColor(120);doc.setFontSize(8);doc.setFont(undefined,'normal')
-doc.text('Generado: '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),W-14,29,{align:'right'})
-let y=44
-const tareasP=tareas.filter(t=>enP(t.created_at)||enP(t.fecha_limite)||(Array.isArray(t.historial)&&t.historial.some(h=>enP(h.fecha))))
-const compP=tareasP.filter(t=>t.estado==='Completada')
-const actividades=tareas.reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
-doc.setTextColor(13,45,74);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text('Resumen Ejecutivo',14,y);y+=3
-doc.autoTable({startY:y,head:[['Copropiedades','Tareas gestionadas','Completadas','Actividades registradas','Fotos subidas']],
-body:[[cops.length,tareasP.length,compP.length,actividades.length,actividades.filter(a=>a.tipo==='foto').length]],
-theme:'grid',headStyles:{fillColor:[30,111,174],fontSize:8},bodyStyles:{fontSize:10,halign:'center',fontStyle:'bold'},margin:{left:14,right:14}})
-y=doc.lastAutoTable.finalY+10
-for(const cop of cops){
-const ts=tareasP.filter(t=>t.copropiedad_id===cop.id)
-if(ts.length===0)continue
-const delegado=perfiles.find(p=>p.id===cop.delegado_id)
-if(y>250){doc.addPage();y=20}
-doc.setFillColor(240,247,255);doc.rect(14,y-4,W-28,9,'F')
-doc.setTextColor(13,45,74);doc.setFontSize(11);doc.setFont(undefined,'bold')
-doc.text(cop.nombre,16,y+2)
-doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(100)
-doc.text('Delegado: '+(delegado?.nombre||'Sin asignar'),W-16,y+2,{align:'right'})
-y+=8
-doc.autoTable({startY:y,
-head:[['Tarea','Estado','Prioridad','Avance','Fecha limite','Responsable']],
-body:ts.map(t=>[t.titulo||'-',t.estado||'-',t.prioridad||'-',(t.progreso||0)+'%',t.fecha_limite?new Date(t.fecha_limite+'T00:00:00').toLocaleDateString('es-CO'):'-',t.responsable||'-']),
-theme:'striped',headStyles:{fillColor:[13,45,74],fontSize:7},bodyStyles:{fontSize:7},margin:{left:14,right:14},
-didParseCell:d=>{if(d.section==='body'&&d.column.index===1){const v=d.cell.raw;if(v==='Completada')d.cell.styles.textColor=[5,150,105];else if(v==='Pendiente')d.cell.styles.textColor=[107,114,128]}}})
-y=doc.lastAutoTable.finalY+4
-const actsC=tareas.filter(t=>t.copropiedad_id===cop.id).reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
-if(actsC.length){
-doc.setFontSize(7);doc.setTextColor(120)
-doc.text('Gestion del periodo: '+actsC.filter(a=>a.tipo==='comentario').length+' comentarios, '+actsC.filter(a=>a.tipo==='foto').length+' fotos, '+actsC.filter(a=>a.tipo==='avance').length+' actualizaciones de avance, '+actsC.filter(a=>a.tipo==='completada').length+' completadas',14,y)
-y+=8}else{y+=4}
-}
-const pages=doc.internal.getNumberOfPages()
-for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(160);doc.text('Geinser Prohorizontal - '+titulo+' - Pag. '+i+' de '+pages,W/2,290,{align:'center'})}
-doc.save((tipoInf==='mes'?'Informe_'+MESES[mesInf]+'_'+anioInf:'Informe_Anual_'+anioInf)+'_Geinser.pdf')
+await genInformePDF({copropiedades:cops,tareas,getDelegado:cop=>perfiles.find(p=>p.id===cop.delegado_id)?.nombre,tipoInf,mesInf,anioInf})
 setShowInf(false)
 }catch(err){alert('Error generando PDF: '+err.message)}
 setGenerando(false)
@@ -150,7 +178,7 @@ return(<div>
 <button onClick={()=>setTipoInf('anio')} style={{flex:1,background:tipoInf==='anio'?GB:'#fff',color:tipoInf==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInf==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Consolidado anual</button>
 </div>
 <div style={{display:'grid',gridTemplateColumns:tipoInf==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
-{tipoInf==='mes'&&<F label="Mes"><select style={inp} value={mesInf} onChange={e=>setMesInf(Number(e.target.value))}>{MESES.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></F>}
+{tipoInf==='mes'&&<F label="Mes"><select style={inp} value={mesInf} onChange={e=>setMesInf(Number(e.target.value))}>{MESES_INF.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></F>}
 <F label="Año"><select style={inp} value={anioInf} onChange={e=>setAnioInf(Number(e.target.value))}>{[hoyD.getFullYear(),hoyD.getFullYear()-1,hoyD.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
 </div>
 <div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>El informe incluye: resumen ejecutivo, tareas gestionadas por copropiedad, estado y avance de cada una, y las actividades registradas por los delegados en el periodo (comentarios, fotos, avances).</div>
@@ -185,6 +213,18 @@ return(<div style={{maxWidth:420}}>
 <F label="Confirmar contrasena" req><input style={inp} type="password" value={pass2} onChange={e=>setPass2(e.target.value)} placeholder="Repite la contrasena"/></F>
 <button onClick={cambiarPassword} disabled={saving} style={{width:'100%',background:saving?'#9ca3af':GB,color:'#fff',border:'none',borderRadius:10,padding:11,cursor:saving?'not-allowed':'pointer',fontWeight:800,marginTop:6}}>{saving?'Guardando...':'Actualizar contrasena'}</button>
 </div>
+{showInfT&&<Modal title={'Informe de gestion - '+copropiedad.nombre} onClose={()=>setShowInfT(false)}>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<button onClick={()=>setTipoInfT('mes')} style={{flex:1,background:tipoInfT==='mes'?GB:'#fff',color:tipoInfT==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfT==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
+<button onClick={()=>setTipoInfT('anio')} style={{flex:1,background:tipoInfT==='anio'?GB:'#fff',color:tipoInfT==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfT==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Anual</button>
+</div>
+<div style={{display:'grid',gridTemplateColumns:tipoInfT==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
+{tipoInfT==='mes'&&<F label="Mes"><select style={inp} value={mesInfT} onChange={e=>setMesInfT(Number(e.target.value))}>{MESES_INF.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></F>}
+<F label="Año"><select style={inp} value={anioInfT} onChange={e=>setAnioInfT(Number(e.target.value))}>{[hoyDT.getFullYear(),hoyDT.getFullYear()-1,hoyDT.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
+</div>
+<div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>Incluye las tareas del periodo, su estado y avance, el registro de gestion (comentarios, avances, completadas) y las fotos de evidencia.</div>
+<button onClick={generarInfCop} disabled={generandoT} style={{width:'100%',background:generandoT?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:10,padding:12,fontWeight:800,cursor:generandoT?'wait':'pointer'}}>{generandoT?'Generando PDF...':'📄 Generar y descargar PDF'}</button>
+</Modal>}
 {toast&&<Toast msg={toast.msg} type={toast.type}/>}
 </div>)
 }
@@ -432,6 +472,9 @@ const[form,setForm]=useState(FD);const Fv=(k,v)=>setForm(p=>({...p,[k]:v}))
 const[toast,setToast]=useState(null);const showT=(m,tp='success')=>{setToast({msg:m,type:tp});setTimeout(()=>setToast(null),4000)}
 const[subiendo,setSubiendo]=useState(false);const[comentNuevo,setComentNuevo]=useState('');const[avRapido,setAvRapido]=useState(null)
 const[filtro,setFiltro]=useState('activas')
+const[showInfT,setShowInfT]=useState(false);const[tipoInfT,setTipoInfT]=useState('mes')
+const hoyDT=new Date();const[mesInfT,setMesInfT]=useState(hoyDT.getMonth());const[anioInfT,setAnioInfT]=useState(hoyDT.getFullYear());const[generandoT,setGenerandoT]=useState(false)
+async function generarInfCop(){setGenerandoT(true);try{await genInformePDF({copropiedades:[copropiedad],tareas:data,getDelegado:()=>perfil?.rol==='delegado'?perfil?.nombre:null,tipoInf:tipoInfT,mesInf:mesInfT,anioInf:anioInfT});setShowInfT(false)}catch(err){showT('Error PDF: '+err.message,'error')}setGenerandoT(false)}
 const hoy=new Date();hoy.setHours(0,0,0,0)
 const esVencida=t=>t.fecha_limite&&new Date(t.fecha_limite+'T00:00:00')<hoy&&t.estado!=='Completada'&&t.estado!=='Cancelada'
 const stats={
@@ -498,7 +541,10 @@ if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Ca
 return(<div>
 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:14,flexWrap:'wrap',gap:10}}>
 <h2 style={{margin:0,fontSize:20,fontWeight:900,color:GD}}>Tareas</h2>
+<div style={{display:'flex',gap:8}}>
+<button onClick={()=>setShowInfT(true)} style={{background:'#fff',color:GD,border:'1.5px solid '+GD,borderRadius:12,padding:'9px 14px',fontWeight:800,cursor:'pointer',fontSize:12}}>📄 Informe</button>
 <button onClick={()=>{setForm(FD);setEdit(null);setShow(true)}} style={{background:GB,color:'#fff',border:'none',borderRadius:12,padding:'9px 18px',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Plus size={14}/>Nueva tarea</button>
+</div>
 </div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(110px,1fr))',gap:8,marginBottom:14}}>
 <div style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:12,padding:'10px 14px'}}><div style={{fontSize:22,fontWeight:900,color:GB}}>{stats.activas}</div><div style={{fontSize:11,color:'#6b7280',fontWeight:700}}>ACTIVAS</div></div>
