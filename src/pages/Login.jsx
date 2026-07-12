@@ -16,7 +16,19 @@ export default function Login(){
   const{signIn}=useAuth()
   const navigate=useNavigate()
 
-  async function handleLogin(e){e.preventDefault();setLoading(true);setError('');const{error:err}=await signIn(email,password);if(err){setError('Correo o contrasena incorrectos');setLoading(false)}else navigate('/')}
+  async function handleLogin(e){e.preventDefault();setLoading(true);setError('')
+const{error:err}=await signIn(email,password)
+if(err){setError('Correo o contrasena incorrectos');setLoading(false);return}
+const{data:ud}=await supabase.auth.getUser()
+const uid=ud?.user?.id
+if(uid){
+const{data:perf}=await supabase.from('perfiles').select('rol').eq('id',uid).single()
+if(perf&&perf.rol!==rol){
+await supabase.auth.signOut()
+setError(rol==='delegado'?'Este usuario no es delegado. Selecciona acceso Director.':'Este usuario no es director. Selecciona acceso Delegado.')
+setLoading(false);return
+}}
+navigate('/')}
   async function handleMagic(e){e.preventDefault();setLoading(true);setError('');const{error:err}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:window.location.origin}});if(err){setError('Error enviando el enlace');setLoading(false)}else{setMagicSent(true);setLoading(false)}}
   async function handleRecovery(e){e.preventDefault();setLoading(true);setError('');const{error:err}=await supabase.auth.resetPasswordForEmail(email,{redirectTo:window.location.origin+'/reset-password'});if(err){setError('Error');setLoading(false)}else{setRecoverySent(true);setLoading(false)}}
 
