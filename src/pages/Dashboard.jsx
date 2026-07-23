@@ -24,81 +24,194 @@ return window.jspdf
 async function imgData(url){
 try{const r=await fetch(url);const b=await r.blob();return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b)})}catch(e){return null}
 }
-async function genInformePDF({copropiedades,tareas,getDelegado,tipoInf,mesInf,anioInf}){
+async function genInformePDF({copropiedades,getDelegado,tipoInf,mesInf,anioInf}){
 const{jsPDF}=await cargarJsPDF()
 const ini=tipoInf==='mes'?new Date(anioInf,mesInf,1):new Date(anioInf,0,1)
 const fin=tipoInf==='mes'?new Date(anioInf,mesInf+1,0,23,59,59):new Date(anioInf,11,31,23,59,59)
-const enP=f=>{if(!f)return false;const d=new Date(f);return d>=ini&&d<=fin}
-const unSolo=copropiedades.length===1
-const titulo=(tipoInf==='mes'?'Informe de Gestion - '+MESES_INF[mesInf]+' '+anioInf:'Informe Consolidado Anual '+anioInf)+(unSolo?' - '+copropiedades[0].nombre:'')
+const enP=f=>{if(!f)return false;const d=new Date(f.length<=10?f+'T00:00:00':f);return d>=ini&&d<=fin}
+const perLabel=tipoInf==='mes'?MESES_INF[mesInf]+' de '+anioInf:'Año '+anioInf
+const fmtM=v=>{const n=Number(v)||0;return '$'+n.toLocaleString('es-CO')}
 const doc=new jsPDF()
 const W=doc.internal.pageSize.getWidth()
-doc.setFillColor(13,45,74);doc.rect(0,0,W,34,'F')
-doc.setTextColor(201,162,39);doc.setFontSize(22);doc.setFont(undefined,'bold');doc.text('GEINSER',14,14)
-doc.setTextColor(255,255,255);doc.setFontSize(7);doc.setFont(undefined,'normal');doc.text('P R O H O R I Z O N T A L',14,19)
-doc.setFontSize(unSolo?11:13);doc.setFont(undefined,'bold');doc.text(titulo.substring(0,80),14,29)
-doc.setTextColor(180);doc.setFontSize(8);doc.setFont(undefined,'normal')
-doc.text('Generado: '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),W-14,24,{align:'right'})
-let y=44
-const tareasP=tareas.filter(t=>enP(t.created_at)||enP(t.fecha_limite)||(Array.isArray(t.historial)&&t.historial.some(h=>enP(h.fecha))))
-const compP=tareasP.filter(t=>t.estado==='Completada')
-const actividades=tareas.reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
-doc.setTextColor(13,45,74);doc.setFontSize(12);doc.setFont(undefined,'bold');doc.text('Resumen Ejecutivo',14,y);y+=3
-doc.autoTable({startY:y,head:[[...(unSolo?[]:['Copropiedades']),'Tareas gestionadas','Completadas','Actividades','Fotos subidas']],
-body:[[...(unSolo?[]:[copropiedades.length]),tareasP.length,compP.length,actividades.length,actividades.filter(a=>a.tipo==='foto').length]],
-theme:'grid',headStyles:{fillColor:[30,111,174],fontSize:8},bodyStyles:{fontSize:10,halign:'center',fontStyle:'bold'},margin:{left:14,right:14}})
-y=doc.lastAutoTable.finalY+10
+const AZ=[13,45,74],AB=[30,111,174],DO=[201,162,39],VE=[5,150,105],RO=[220,38,38],AM=[217,119,6],GR=[107,114,128]
+let pagina=0
+function header(sub){
+doc.setFillColor(...AZ);doc.rect(0,0,W,30,'F')
+doc.setFillColor(...DO);doc.rect(0,30,W,1.5,'F')
+doc.setTextColor(...DO);doc.setFontSize(19);doc.setFont(undefined,'bold');doc.text('GEINSER',14,12)
+doc.setTextColor(255,255,255);doc.setFontSize(6.5);doc.setFont(undefined,'normal');doc.text('P R O H O R I Z O N T A L',14,17)
+doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('INFORME DE GESTION',14,26)
+doc.setFontSize(9);doc.setFont(undefined,'normal');doc.text(sub.substring(0,60),W-14,22,{align:'right'})
+doc.setFontSize(8);doc.setTextColor(200);doc.text(perLabel,W-14,27,{align:'right'})
+}
+function kpi(x,y,w,valor,label,color){
+doc.setFillColor(250,250,252);doc.setDrawColor(228,231,235);doc.roundedRect(x,y,w,17,2,2,'FD')
+doc.setFillColor(...color);doc.rect(x,y,1.6,17,'F')
+doc.setTextColor(...color);doc.setFontSize(13);doc.setFont(undefined,'bold');doc.text(String(valor),x+5,y+8)
+doc.setTextColor(...GR);doc.setFontSize(5.6);doc.setFont(undefined,'normal');doc.text(label.toUpperCase(),x+5,y+13.5)
+}
+function barras(x,y,w,titulo,datos){
+doc.setTextColor(...AZ);doc.setFontSize(9);doc.setFont(undefined,'bold');doc.text(titulo,x,y);y+=4
+const max=Math.max(...datos.map(d=>d.v),1)
+for(const d of datos){
+doc.setTextColor(80);doc.setFontSize(6.5);doc.setFont(undefined,'normal');doc.text(d.l,x,y+3)
+const bw=Math.max((d.v/max)*(w-52),1)
+doc.setFillColor(235,238,242);doc.roundedRect(x+34,y,w-52,4,1,1,'F')
+doc.setFillColor(...d.c);doc.roundedRect(x+34,y,bw,4,1,1,'F')
+doc.setTextColor(...AZ);doc.setFont(undefined,'bold');doc.text(String(d.v),x+34+(w-52)+3,y+3.4)
+y+=7}
+return y+3
+}
+function seccion(y,titulo,color){
+if(y>255){doc.addPage();header(tituloDoc);y=40}
+doc.setFillColor(...color);doc.rect(14,y,2.2,7,'F')
+doc.setTextColor(...AZ);doc.setFontSize(10.5);doc.setFont(undefined,'bold');doc.text(titulo,19,y+5.2)
+return y+10
+}
+let tituloDoc=''
 for(const cop of copropiedades){
-const ts=tareasP.filter(t=>t.copropiedad_id===cop.id)
-if(ts.length===0&&!unSolo)continue
-if(y>245){doc.addPage();y=20}
-doc.setFillColor(240,247,255);doc.rect(14,y-4,W-28,9,'F')
-doc.setTextColor(13,45,74);doc.setFontSize(11);doc.setFont(undefined,'bold')
-doc.text(cop.nombre,16,y+2)
-doc.setFontSize(8);doc.setFont(undefined,'normal');doc.setTextColor(100)
-doc.text('Delegado: '+((getDelegado&&getDelegado(cop))||'Sin asignar'),W-16,y+2,{align:'right'})
-y+=8
-if(ts.length===0){doc.setFontSize(9);doc.setTextColor(150);doc.text('Sin gestion registrada en el periodo',16,y+2);y+=10;continue}
-doc.autoTable({startY:y,
-head:[['Tarea','Estado','Prioridad','Avance','Fecha limite','Responsable']],
-body:ts.map(t=>[t.titulo||'-',t.estado||'-',t.prioridad||'-',(t.progreso||0)+'%',t.fecha_limite?new Date(t.fecha_limite+'T00:00:00').toLocaleDateString('es-CO'):'-',t.responsable||'-']),
-theme:'striped',headStyles:{fillColor:[13,45,74],fontSize:7},bodyStyles:{fontSize:7},margin:{left:14,right:14},
-didParseCell:d=>{if(d.section==='body'&&d.column.index===1){const v=d.cell.raw;if(v==='Completada')d.cell.styles.textColor=[5,150,105];else if(v==='Pendiente')d.cell.styles.textColor=[107,114,128]}}})
-y=doc.lastAutoTable.finalY+4
-const actsC=tareas.filter(t=>t.copropiedad_id===cop.id).reduce((acc,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))acc.push(h)});return acc},[])
-if(actsC.length){doc.setFontSize(7);doc.setTextColor(120)
-doc.text('Gestion del periodo: '+actsC.filter(a=>a.tipo==='comentario').length+' comentarios, '+actsC.filter(a=>a.tipo==='foto').length+' fotos, '+actsC.filter(a=>a.tipo==='avance').length+' avances, '+actsC.filter(a=>a.tipo==='completada').length+' completadas',14,y);y+=6}
-const conFotos=ts.filter(t=>Array.isArray(t.fotos)&&t.fotos.length>0)
+tituloDoc=cop.nombre
+if(pagina>0)doc.addPage()
+pagina++
+header(cop.nombre)
+let y=40
+// Consultar datos de todos los modulos
+const[rT,rC,rP,rM,rK,rQ,rS,rO]=await Promise.all([
+supabase.from('tareas').select('*').eq('copropiedad_id',cop.id),
+supabase.from('contratos').select('*').eq('copropiedad_id',cop.id),
+supabase.from('polizas').select('*').eq('copropiedad_id',cop.id),
+supabase.from('mantenimientos').select('*').eq('copropiedad_id',cop.id),
+supabase.from('cartera').select('*').eq('copropiedad_id',cop.id),
+supabase.from('pqrs').select('*').eq('copropiedad_id',cop.id),
+supabase.from('sgsst').select('*').eq('copropiedad_id',cop.id),
+supabase.from('obras').select('*').eq('copropiedad_id',cop.id)])
+const tareas=rT.data||[],contratos=rC.data||[],polizas=rP.data||[],mants=rM.data||[],cartera=rK.data||[],pqrs=rQ.data||[],sgsst=rS.data||[],obras=rO.data||[]
+const tP=tareas.filter(t=>enP(t.created_at)||enP(t.fecha_limite)||(Array.isArray(t.historial)&&t.historial.some(h=>enP(h.fecha))))
+const acts=tareas.reduce((a,t)=>{if(Array.isArray(t.historial))t.historial.forEach(h=>{if(enP(h.fecha))a.push(h)});return a},[])
+const comp=tP.filter(t=>t.estado==='Completada')
+const cumpl=tP.length?Math.round(comp.length/tP.length*100):0
+const avProm=tP.length?Math.round(tP.reduce((s,t)=>s+(Number(t.progreso)||0),0)/tP.length):0
+const pqrsP=pqrs.filter(p=>enP(p.created_at)||enP(p.fecha_recepcion))
+const pqrsRes=pqrsP.filter(p=>['Resuelta','Cerrada'].includes(p.estado))
+const mantsP=mants.filter(m=>enP(m.created_at)||enP(m.fecha_programada)||enP(m.fecha))
+const sgsstP=sgsst.filter(s=>enP(s.created_at)||enP(s.fecha_programada)||enP(s.fecha_ejecutada))
+const hoy2=new Date()
+const contVig=contratos.filter(x=>{const f=x.fecha_vencimiento||x.fecha_fin;return !f||new Date(f)>=hoy2})
+// Datos del edificio
+doc.setTextColor(...GR);doc.setFontSize(8)
+const deleg=(getDelegado&&getDelegado(cop))||'Sin asignar'
+doc.text('Direccion: '+(cop.direccion||'-')+'    |    Unidades: '+(cop.unidades||'-')+'    |    Administrador delegado: '+deleg,14,y);y+=4
+doc.text('Fecha de elaboracion: '+new Date().toLocaleDateString('es-CO',{day:'2-digit',month:'long',year:'numeric'}),14,y);y+=8
+// KPIs fila 1 y 2
+doc.setTextColor(...AZ);doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('1. Indicadores del periodo',14,y);y+=4
+const kw=(W-28-9)/4
+kpi(14,y,kw,tP.length,'Tareas gestionadas',AB);kpi(14+kw+3,y,kw,comp.length,'Completadas',VE)
+kpi(14+(kw+3)*2,y,kw,cumpl+'%','Cumplimiento',cumpl>=70?VE:cumpl>=40?AM:RO)
+kpi(14+(kw+3)*3,y,kw,avProm+'%','Avance promedio',AB);y+=20
+kpi(14,y,kw,pqrsP.length,'PQRs recibidas',AM);kpi(14+kw+3,y,kw,pqrsRes.length,'PQRs resueltas',VE)
+kpi(14+(kw+3)*2,y,kw,mantsP.length,'Mantenimientos',[8,145,178])
+kpi(14+(kw+3)*3,y,kw,sgsstP.length,'Actividades SST',[124,58,237]);y+=24
+// Graficos
+doc.setTextColor(...AZ);doc.setFontSize(11);doc.setFont(undefined,'bold');doc.text('2. Analisis de gestion',14,y);y+=6
+const porEstado=['Pendiente','En progreso','Completada','Cancelada'].map(e=>({l:e,v:tP.filter(t=>t.estado===e).length,c:e==='Completada'?VE:e==='En progreso'?AB:e==='Cancelada'?RO:GR}))
+const porPrior=['Alta','Media','Baja'].map(p=>({l:'Prioridad '+p,v:tP.filter(t=>t.prioridad===p).length,c:p==='Alta'?RO:p==='Media'?AM:VE}))
+const y1=barras(14,y,(W-34)/2,'Tareas por estado',porEstado)
+const y2=barras(14+(W-28)/2+3,y,(W-34)/2,'Tareas por prioridad',porPrior)
+y=Math.max(y1,y2)+2
+const actBar=[{l:'Comentarios',v:acts.filter(a=>a.tipo==='comentario').length,c:AB},{l:'Fotos',v:acts.filter(a=>a.tipo==='foto').length,c:[124,58,237]},{l:'Avances',v:acts.filter(a=>a.tipo==='avance').length,c:AM},{l:'Completadas',v:acts.filter(a=>a.tipo==='completada').length,c:VE}]
+y=barras(14,y,(W-34)/2,'Actividad registrada por el delegado',actBar)
+// 3. Contratos
+if(contratos.length){
+y=seccion(y,'3. Contratos de servicios',[124,58,237])
+doc.autoTable({startY:y,head:[['Proveedor','Servicio','Valor','Vencimiento','Estado']],
+body:contratos.map(x=>{const f=x.fecha_vencimiento||x.fecha_fin;const d=f?Math.ceil((new Date(f+'T00:00:00')-hoy2)/864e5):null;return[x.proveedor||x.nombre_proveedor||'-',x.servicio||x.objeto||'-',x.valor?fmtM(x.valor):'-',f?new Date(f+'T00:00:00').toLocaleDateString('es-CO'):'-',d===null?'-':d<0?'VENCIDO':d<=90?'Vence en '+d+'d':'Vigente']}),
+theme:'striped',headStyles:{fillColor:[124,58,237],fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===4){const v=String(d.cell.raw);if(v==='VENCIDO')d.cell.styles.textColor=RO;else if(v.startsWith('Vence'))d.cell.styles.textColor=AM;else if(v==='Vigente')d.cell.styles.textColor=VE}}})
+y=doc.lastAutoTable.finalY+6}
+// 4. Polizas
+if(polizas.length){
+y=seccion(y,(contratos.length?'4':'3')+'. Polizas de zonas comunes',[8,145,178])
+doc.autoTable({startY:y,head:[['Aseguradora','No. Poliza','Inicio vigencia','Fin vigencia','Valor asegurado','Prima']],
+body:polizas.map(x=>{const d=x.fin_vigencia?Math.ceil((new Date(x.fin_vigencia+'T00:00:00')-hoy2)/864e5):null;return[x.aseguradora||'-',x.numero_poliza||'-',x.inicio_vigencia?new Date(x.inicio_vigencia+'T00:00:00').toLocaleDateString('es-CO'):'-',(x.fin_vigencia?new Date(x.fin_vigencia+'T00:00:00').toLocaleDateString('es-CO'):'-')+(d!==null&&d>=0&&d<=90?' ('+d+'d)':d!==null&&d<0?' VENCIDA':''),fmtM(x.valor_asegurado),fmtM(x.costo_prima)]}),
+theme:'striped',headStyles:{fillColor:[8,145,178],fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+6}
+// 5. Tareas detalle
+if(tP.length){
+y=seccion(y,'Gestion de tareas del periodo',AB)
+doc.autoTable({startY:y,head:[['Tarea','Estado','Prioridad','Avance','Fecha limite','Responsable']],
+body:tP.map(t=>[t.titulo||'-',t.estado||'-',t.prioridad||'-',(t.progreso||0)+'%',t.fecha_limite?new Date(t.fecha_limite+'T00:00:00').toLocaleDateString('es-CO'):'-',t.responsable||'-']),
+theme:'striped',headStyles:{fillColor:AZ,fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===1&&d.cell.raw==='Completada')d.cell.styles.textColor=VE}})
+y=doc.lastAutoTable.finalY+6}
+// 6. Mantenimientos
+if(mantsP.length){
+y=seccion(y,'Mantenimientos',VE)
+doc.autoTable({startY:y,head:[['Equipo/Area','Tipo','Fecha','Estado','Costo']],
+body:mantsP.map(m=>[m.equipo||m.area||m.descripcion||'-',m.tipo||'-',(m.fecha_programada||m.fecha)?new Date((m.fecha_programada||m.fecha)+'T00:00:00').toLocaleDateString('es-CO'):'-',m.estado||'-',m.costo?fmtM(m.costo):'-']),
+theme:'striped',headStyles:{fillColor:VE,fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+6}
+// 7. PQRs
+if(pqrsP.length){
+y=seccion(y,'PQRs (Peticiones, Quejas y Reclamos)',[229,62,62])
+doc.autoTable({startY:y,head:[['No.','Tipo','Solicitante','Descripcion','Estado']],
+body:pqrsP.map(p=>[p.numero||'-',p.tipo||'-',p.nombre_solicitante||'-',(p.descripcion||'').substring(0,45),p.estado||'-']),
+theme:'striped',headStyles:{fillColor:[229,62,62],fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===4&&['Resuelta','Cerrada'].includes(String(d.cell.raw)))d.cell.styles.textColor=VE}})
+y=doc.lastAutoTable.finalY+6}
+// 8. Cartera
+if(cartera.length){
+const tD=cartera.reduce((s,x)=>s+(Number(x.monto_deuda)||0),0),tR=cartera.reduce((s,x)=>s+(Number(x.monto_recuperado)||0),0)
+y=seccion(y,'Gestion de cartera',RO)
+doc.autoTable({startY:y,head:[['Unidad','Deuda','Recuperado','Estado']],
+body:[...cartera.map(x=>[x.unidad||'-',fmtM(x.monto_deuda),fmtM(x.monto_recuperado),x.estado||'-']),[{content:'TOTAL',styles:{fontStyle:'bold'}},{content:fmtM(tD),styles:{fontStyle:'bold'}},{content:fmtM(tR),styles:{fontStyle:'bold',textColor:VE}},'']],
+theme:'striped',headStyles:{fillColor:RO,fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+6}
+// 9. SG-SST
+if(sgsstP.length){
+y=seccion(y,'Seguridad y Salud en el Trabajo (SG-SST)',[8,145,178])
+doc.autoTable({startY:y,head:[['Actividad','Programada','Ejecutada','Responsable','Estado']],
+body:sgsstP.map(s=>[s.actividad||'-',s.fecha_programada?new Date(s.fecha_programada+'T00:00:00').toLocaleDateString('es-CO'):'-',s.fecha_ejecutada?new Date(s.fecha_ejecutada+'T00:00:00').toLocaleDateString('es-CO'):'-',s.responsable||'-',s.completada?'Completada':'Pendiente']),
+theme:'striped',headStyles:{fillColor:[8,145,178],fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14},
+didParseCell:d=>{if(d.section==='body'&&d.column.index===4&&d.cell.raw==='Completada')d.cell.styles.textColor=VE}})
+y=doc.lastAutoTable.finalY+6}
+// 10. Obras
+const obrasP=obras.filter(o=>enP(o.created_at)||enP(o.fecha_inicio))
+if(obrasP.length){
+y=seccion(y,'Obras y mejoras',[249,115,22])
+doc.autoTable({startY:y,head:[['Obra','Contratista','Avance','Costo','Estado']],
+body:obrasP.map(o=>[o.nombre||o.descripcion||'-',o.contratista||'-',(o.progreso||o.avance||0)+'%',o.costo?fmtM(o.costo):'-',o.estado||'-']),
+theme:'striped',headStyles:{fillColor:[249,115,22],fontSize:6.5},bodyStyles:{fontSize:6.5},margin:{left:14,right:14}})
+y=doc.lastAutoTable.finalY+6}
+// Evidencias
+const conFotos=tP.filter(t=>Array.isArray(t.fotos)&&t.fotos.length>0)
 if(conFotos.length){
-doc.setFontSize(9);doc.setTextColor(13,45,74);doc.setFont(undefined,'bold')
-if(y>250){doc.addPage();y=20}
-doc.text('Evidencias fotograficas',14,y+3);y+=7
-doc.setFont(undefined,'normal')
+y=seccion(y,'Registro fotografico de la gestion',DO)
 for(const t of conFotos){
-const fotos=t.fotos.slice(0,4)
-if(y>235){doc.addPage();y=20}
-doc.setFontSize(7);doc.setTextColor(80)
-doc.text('- '+(t.titulo||'').substring(0,70),14,y+2);y+=4
+if(y>230){doc.addPage();header(cop.nombre);y=40}
+doc.setFontSize(7);doc.setTextColor(60);doc.setFont(undefined,'bold');doc.text(t.titulo||'',14,y+2);y+=4
+doc.setFont(undefined,'normal')
 let x=14
-for(const furl of fotos){
+for(const furl of t.fotos.slice(0,4)){
 const d64=await imgData(furl)
 if(d64){try{doc.addImage(d64,'JPEG',x,y,42,30)}catch(e){}}
-x+=46
-if(x>W-46){x=14;y+=34}
-}
-y+=34
-}}
-y+=6
+x+=46;if(x>W-46){x=14;y+=34}}
+y+=34}}
+// Cierre
+if(y>250){doc.addPage();header(cop.nombre);y=40}
+doc.setDrawColor(...DO);doc.setLineWidth(0.5);doc.line(14,y+4,W-14,y+4)
+doc.setTextColor(...GR);doc.setFontSize(7)
+doc.text('Informe generado por la plataforma Geinser Prohorizontal como soporte de la gestion administrativa del periodo. Elaborado por: '+deleg,14,y+10,{maxWidth:W-28})
 }
 const pages=doc.internal.getNumberOfPages()
-for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(7);doc.setTextColor(160);doc.text('Geinser Prohorizontal - Pag. '+i+' de '+pages,W/2,290,{align:'center'})}
-const fname=(tipoInf==='mes'?'Informe_'+MESES_INF[mesInf]+'_'+anioInf:'Informe_Anual_'+anioInf)+(unSolo?'_'+copropiedades[0].nombre.replace(/[^a-zA-Z0-9]/g,'_'):'')+'_Geinser.pdf'
+for(let i=1;i<=pages;i++){doc.setPage(i);doc.setFontSize(6.5);doc.setTextColor(160);doc.text('Geinser Prohorizontal · Informe de Gestion · '+perLabel+' · Pag. '+i+' de '+pages,W/2,291,{align:'center'})}
+const fname='Informe_'+(tipoInf==='mes'?MESES_INF[mesInf]+'_':'Anual_')+anioInf+(copropiedades.length===1?'_'+copropiedades[0].nombre.replace(/[^a-zA-Z0-9]/g,'_'):'')+'_Geinser.pdf'
 doc.save(fname)
 }
 
 function PanelControl({onSelect}){
 const[cops,setCops]=useState([]);const[tareas,setTareas]=useState([]);const[perfiles,setPerfiles]=useState([]);const[loading,setLoading]=useState(true)
 const[showInf,setShowInf]=useState(false);const[tipoInf,setTipoInf]=useState('mes')
+const[copSel,setCopSel]=useState('todos')
 const hoyD=new Date()
 const[mesInf,setMesInf]=useState(hoyD.getMonth());const[anioInf,setAnioInf]=useState(hoyD.getFullYear())
 const[generando,setGenerando]=useState(false)
@@ -133,7 +246,8 @@ vencidas:tareas.filter(esVenc).length
 async function generarInforme(){
 setGenerando(true)
 try{
-await genInformePDF({copropiedades:cops,tareas,getDelegado:cop=>perfiles.find(p=>p.id===cop.delegado_id)?.nombre,tipoInf,mesInf,anioInf})
+const copsInf=copSel==='todos'?cops:cops.filter(x=>x.id===copSel)
+await genInformePDF({copropiedades:copsInf,getDelegado:cop=>perfiles.find(p=>p.id===cop.delegado_id)?.nombre,tipoInf,mesInf,anioInf})
 setShowInf(false)
 }catch(err){alert('Error generando PDF: '+err.message)}
 setGenerando(false)
@@ -177,7 +291,8 @@ return(<div>
 <button onClick={()=>setTipoInf('mes')} style={{flex:1,background:tipoInf==='mes'?GB:'#fff',color:tipoInf==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInf==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
 <button onClick={()=>setTipoInf('anio')} style={{flex:1,background:tipoInf==='anio'?GB:'#fff',color:tipoInf==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInf==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Consolidado anual</button>
 </div>
-<div style={{display:'grid',gridTemplateColumns:tipoInf==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
+<F label="Edificio"><select style={inp} value={copSel} onChange={e=>setCopSel(e.target.value)}><option value="todos">Todos los edificios (consolidado)</option>{cops.map(cp=><option key={cp.id} value={cp.id}>{cp.nombre}</option>)}</select></F>
+<div style={{display:'grid',gridTemplateColumns:tipoInf==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16,marginTop:10}}>
 {tipoInf==='mes'&&<F label="Mes"><select style={inp} value={mesInf} onChange={e=>setMesInf(Number(e.target.value))}>{MESES_INF.map((m,i)=><option key={m} value={i}>{m}</option>)}</select></F>}
 <F label="Año"><select style={inp} value={anioInf} onChange={e=>setAnioInf(Number(e.target.value))}>{[hoyD.getFullYear(),hoyD.getFullYear()-1,hoyD.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
 </div>
@@ -454,7 +569,7 @@ const{data,loading,insert,update,remove,refetch}=useTable(tabla,{copropiedad_id:
 const[show,setShow]=useState(false);const[edit,setEdit]=useState(null);const[form,setForm]=useState(FD);const[subiendo,setSubiendo]=useState(false)
 const Fv=(k,v)=>setForm(p=>({...p,[k]:v}))
 const[toast,setToast]=useState(null);const showT=(m,t='success')=>{setToast({msg:m,type:t});setTimeout(()=>setToast(null),3000)}
-async function save(){const payload={...form,copropiedad_id:copropiedad.id};Object.keys(payload).forEach(k=>{if(['valor','monto_deuda','monto_recuperado','costo','progreso'].includes(k)&&payload[k]!=='')payload[k]=Number(payload[k]);if(k.includes('fecha')&&payload[k]==='')payload[k]=null});const res=edit?await update(edit.id,payload):await insert(payload);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}showT(edit?'Actualizado':'Registrado');setShow(false);setEdit(null);setForm(FD)}
+async function save(){const payload={...form,copropiedad_id:copropiedad.id};Object.keys(payload).forEach(k=>{if(['valor','monto_deuda','monto_recuperado','costo','progreso','valor_asegurado','costo_prima'].includes(k)&&payload[k]!=='')payload[k]=Number(payload[k]);if(k.includes('fecha')&&payload[k]==='')payload[k]=null});const res=edit?await update(edit.id,payload):await insert(payload);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}showT(edit?'Actualizado':'Registrado');setShow(false);setEdit(null);setForm(FD)}
 async function subirFoto(e,id){const file=e.target.files[0];if(!file)return;setSubiendo(true);const path=`${tabla}/${id}/${Date.now()}.${file.name.split('.').pop()||'jpg'}`;const{error}=await supabase.storage.from('geinser-fotos').upload(path,file,{upsert:true});if(error){showT('Error subiendo foto: '+error.message,'error');setSubiendo(false);return};const{data:u}=supabase.storage.from('geinser-fotos').getPublicUrl(path);const res=await update(id,{evidencia:u.publicUrl});setSubiendo(false);if(res?.error){showT('Error guardando foto: '+res.error.message,'error');return}showT('Foto subida');refetch()}
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando...</div>
 return(<div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}><h2 style={{margin:0,fontSize:20,fontWeight:900,color:GD}}>{titulo}</h2><button onClick={()=>{setForm(FD);setEdit(null);setShow(true)}} style={{background:color,color:'#fff',border:'none',borderRadius:12,padding:'9px 18px',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Plus size={14}/>Nuevo</button></div>
@@ -464,7 +579,7 @@ return(<div><div style={{display:'flex',justifyContent:'space-between',alignItem
 <button onClick={save} style={{flex:2,background:color,color:'#fff',border:'none',borderRadius:10,padding:11,cursor:'pointer',fontWeight:800}}>{edit?'Guardar':'Registrar'}</button></div>
 </Modal>}{toast&&<Toast {...toast}/>}</div>)
 }
-function Contratos({copropiedad}){return<ModuloBase tabla="contratos" copropiedad={copropiedad} titulo="Contratos" color="#7c3aed" FD={{proveedor:'',servicio:'',valor:'',fecha_inicio:'',fecha_vencimiento:'',contacto:'',telefono:'',estado:'Activo',notas:'',evidencia:''}} campos={[{key:'proveedor',label:'Proveedor'},{key:'servicio',label:'Servicio'},{key:'valor',label:'Valor ($)',type:'number'},{key:'estado',label:'Estado',type:'select',options:['Activo','Vencido','Cancelado','En renovacion']},{key:'fecha_inicio',label:'Inicio',type:'date'},{key:'fecha_vencimiento',label:'Vencimiento',type:'date'},{key:'contacto',label:'Contacto'},{key:'telefono',label:'Telefono'},{key:'notas',label:'Notas',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>{const d=daysTo(i.fecha_vencimiento);return(<div key={i.id} style={{background:'#fff',border:`1.5px solid ${d!==null&&d>=0&&d<=60?'#fca5a5':'#e5e7eb'}`,borderRadius:14,padding:16}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t={i.estado} color="#7c3aed"/>{d!==null&&d>=0&&d<=60&&<Bdg t={d+'d'} color="#dc2626"/>}</div><div style={{fontWeight:900,color:'#7c3aed'}}>{i.proveedor}</div><div style={{fontSize:12,color:GD,fontWeight:700,marginBottom:4}}>{i.servicio}</div><div style={{fontSize:11,color:'#6b7280',marginBottom:8}}>{fmtM(i.valor)}/mes · Vence {fmt(i.fecha_vencimiento)}</div>{i.evidencia&&<img src={i.evidencia} alt="foto" style={{width:'100%',height:100,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}<div style={{display:'flex',gap:6}}><button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button><label style={{background:'#f5f3ff',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#7c3aed',display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label><button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></div></div>)}}/>}
+function Contratos({copropiedad}){return<ModuloBase tabla="contratos" copropiedad={copropiedad} titulo="Contratos" color="#7c3aed" FD={{proveedor:'',servicio:'',valor:'',fecha_inicio:'',fecha_vencimiento:'',contacto:'',telefono:'',estado:'Activo',notas:'',evidencia:''}} campos={[{key:'proveedor',label:'Proveedor'},{key:'servicio',label:'Servicio'},{key:'valor',label:'Valor ($)',type:'number'},{key:'estado',label:'Estado',type:'select',options:['Activo','Vencido','Cancelado','En renovacion']},{key:'fecha_inicio',label:'Inicio',type:'date'},{key:'fecha_vencimiento',label:'Vencimiento',type:'date'},{key:'contacto',label:'Contacto'},{key:'telefono',label:'Telefono'},{key:'notas',label:'Notas',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>{const d=daysTo(i.fecha_vencimiento);return(<div key={i.id} style={{background:'#fff',border:`1.5px solid ${d!==null&&d>=0&&d<=60?'#fca5a5':'#e5e7eb'}`,borderRadius:14,padding:16}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t={i.estado} color="#7c3aed"/>{d!==null&&d>=0&&d<=90&&<Bdg t={d+'d'} color="#dc2626"/>}</div><div style={{fontWeight:900,color:'#7c3aed'}}>{i.proveedor}</div><div style={{fontSize:12,color:GD,fontWeight:700,marginBottom:4}}>{i.servicio}</div><div style={{fontSize:11,color:'#6b7280',marginBottom:8}}>{fmtM(i.valor)}/mes · Vence {fmt(i.fecha_vencimiento)}</div>{i.evidencia&&<img src={i.evidencia} alt="foto" style={{width:'100%',height:100,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}<div style={{display:'flex',gap:6}}><button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button><label style={{background:'#f5f3ff',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#7c3aed',display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label><button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></div></div>)}}/>}
 function Tareas({copropiedad,perfil}){
 const cP={Alta:'#dc2626',Media:'#d97706',Baja:'#059669'}
 const FD={titulo:'',descripcion:'',prioridad:'Media',estado:'Pendiente',progreso:0,fecha_limite:'',responsable:'',observaciones:'',comentarios:'',fecha_alerta:'',fotos:[],historial:[]}
@@ -614,10 +729,30 @@ return(<div>
 function Mantenimiento({copropiedad}){return<ModuloBase tabla="mantenimientos" copropiedad={copropiedad} titulo="Mantenimiento" color="#059669" FD={{area:'',proveedor:'',periodicidad:'Mensual',ultima_fecha:'',proxima_fecha:'',costo:'',estado:'Programado',notas:'',evidencia:''}} campos={[{key:'area',label:'Area / Sistema'},{key:'proveedor',label:'Proveedor'},{key:'periodicidad',label:'Periodicidad',type:'select',options:['Mensual','Bimestral','Trimestral','Semestral','Anual','Unico']},{key:'estado',label:'Estado',type:'select',options:['Programado','Ejecutado','Vencido','Cancelado']},{key:'ultima_fecha',label:'Ultima fecha',type:'date'},{key:'proxima_fecha',label:'Proxima fecha',type:'date'},{key:'costo',label:'Costo ($)',type:'number'},{key:'notas',label:'Notas',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>{const d=daysTo(i.proxima_fecha);return(<div key={i.id} style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:14,padding:16}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t={i.estado} color="#059669"/>{d!==null&&d>=0&&d<=7&&<Bdg t={d+'d'} color="#d97706"/>}</div><div style={{fontWeight:900,color:GD}}>{i.area}</div><div style={{fontSize:12,color:'#6b7280',marginBottom:4}}>{i.proveedor||'Sin proveedor'} · {i.periodicidad}</div><div style={{fontSize:11,color:'#6b7280',marginBottom:8}}>Proxima: {fmt(i.proxima_fecha)} · {fmtM(i.costo)}</div>{i.evidencia&&<img src={i.evidencia} alt="foto" style={{width:'100%',height:100,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}<div style={{display:'flex',gap:6}}><button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button><label style={{background:'#dcfce7',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#059669',display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label><button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></div></div>)}}/>}
 function Cartera({copropiedad}){return<ModuloBase tabla="cartera" copropiedad={copropiedad} titulo="Cartera" color="#dc2626" FD={{concepto:'',deudor:'',unidad:'',monto_deuda:'',monto_recuperado:'',fecha_mora:'',estado:'En mora',accion:'',notas:'',evidencia:''}} campos={[{key:'concepto',label:'Concepto'},{key:'deudor',label:'Deudor'},{key:'unidad',label:'Unidad'},{key:'estado',label:'Estado',type:'select',options:['En mora','En acuerdo','Recuperado','Juridico','Castigado']},{key:'monto_deuda',label:'Deuda ($)',type:'number'},{key:'monto_recuperado',label:'Recuperado ($)',type:'number'},{key:'fecha_mora',label:'Fecha mora',type:'date'},{key:'accion',label:'Accion tomada'},{key:'notas',label:'Notas',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>(<div key={i.id} style={{background:'#fff',border:'1.5px solid #fecaca',borderRadius:14,padding:16}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t={i.estado} color="#dc2626"/><span style={{fontSize:11,fontWeight:700,color:'#dc2626'}}>{fmtM(i.monto_deuda)}</span></div><div style={{fontWeight:900,color:GD}}>{i.concepto}</div><div style={{fontSize:12,color:'#6b7280',marginBottom:4}}>{i.deudor||'—'}{i.unidad?' · '+i.unidad:''}</div>{i.monto_recuperado>0&&<div style={{fontSize:11,color:'#059669',marginBottom:4}}>Recuperado: {fmtM(i.monto_recuperado)}</div>}{i.evidencia&&<img src={i.evidencia} alt="foto" style={{width:'100%',height:100,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}<div style={{display:'flex',gap:6}}><button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button><label style={{background:'#fef2f2',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626',display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label><button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></div></div>)}/>}
 function SGSST({copropiedad}){return<ModuloBase tabla="sgsst" copropiedad={copropiedad} titulo="SG-SST" color="#0891b2" FD={{actividad:'',fecha_programada:'',fecha_ejecutada:'',responsable:'',completada:false,evidencia:'',observaciones:''}} campos={[{key:'actividad',label:'Actividad',full:true},{key:'responsable',label:'Responsable'},{key:'fecha_programada',label:'Programada',type:'date'},{key:'fecha_ejecutada',label:'Ejecutada',type:'date'},{key:'completada',label:'Completada',type:'checkbox'},{key:'observaciones',label:'Observaciones',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>(<div key={i.id} style={{background:'#fff',border:'1.5px solid #e0f2fe',borderRadius:14,padding:16}}><div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t={i.completada?'Ejecutada':'Pendiente'} color={i.completada?'#059669':'#0369a1'}/></div><div style={{fontWeight:900,color:GD,marginBottom:4}}>{i.actividad}</div><div style={{fontSize:11,color:'#6b7280',marginBottom:4}}>Programada: {fmt(i.fecha_programada)}</div>{i.responsable&&<div style={{fontSize:11,color:'#6b7280',marginBottom:6}}>Responsable: {i.responsable}</div>}{i.evidencia&&<img src={i.evidencia} alt="ev" style={{width:'100%',height:90,objectFit:'cover',borderRadius:8,marginBottom:6}}/>}<div style={{display:'flex',gap:6}}><button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button><label style={{background:'#e0f2fe',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#0891b2',display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label><button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></div></div>)}/>}
+function Polizas({copropiedad}){
+const fmtP=v=>{const n=Number(v)||0;return '$'+n.toLocaleString('es-CO')}
+return<ModuloBase tabla="polizas" copropiedad={copropiedad} titulo="Polizas" color="#0891b2" FD={{aseguradora:'',numero_poliza:'',inicio_vigencia:'',fin_vigencia:'',valor_asegurado:'',costo_prima:'',observaciones:'',evidencia:''}} campos={[{key:'aseguradora',label:'Aseguradora',full:true},{key:'numero_poliza',label:'Numero de poliza'},{key:'inicio_vigencia',label:'Inicio de vigencia',type:'date'},{key:'fin_vigencia',label:'Fin de vigencia',type:'date'},{key:'valor_asegurado',label:'Valor asegurado ($)',type:'number'},{key:'costo_prima',label:'Costo de la prima ($)',type:'number'},{key:'observaciones',label:'Observaciones',type:'textarea',full:true}]} renderCard={(i,onE,onD,subF,sub)=>{const d=daysTo(i.fin_vigencia);const venc=d!==null&&d<0;const prox=d!==null&&d>=0&&d<=90;return(<div key={i.id} style={{background:'#fff',border:'1.5px solid '+(venc?'#fca5a5':prox?'#fde68a':'#e5e7eb'),borderRadius:14,padding:16}}>
+<div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><Bdg t="Zonas comunes" color="#0891b2"/>{venc?<Bdg t="VENCIDA" color="#dc2626"/>:prox?<Bdg t={'Vence en '+d+'d'} color="#d97706"/>:i.fin_vigencia?<Bdg t="Vigente" color="#059669"/>:null}</div>
+<div style={{fontWeight:900,color:GD,marginBottom:2}}>{i.aseguradora||'Sin aseguradora'}</div>
+<div style={{fontSize:11,color:'#9ca3af',marginBottom:8}}>Poliza No. {i.numero_poliza||'-'}</div>
+<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6,marginBottom:8,fontSize:11}}>
+<div style={{background:'#f9fafb',borderRadius:8,padding:'6px 8px'}}><div style={{color:'#9ca3af',fontSize:9,fontWeight:700}}>VIGENCIA</div><div style={{color:GD,fontWeight:700}}>{i.inicio_vigencia?fmt(i.inicio_vigencia):'-'} a {i.fin_vigencia?fmt(i.fin_vigencia):'-'}</div></div>
+<div style={{background:'#f9fafb',borderRadius:8,padding:'6px 8px'}}><div style={{color:'#9ca3af',fontSize:9,fontWeight:700}}>VALOR ASEGURADO</div><div style={{color:GD,fontWeight:700}}>{fmtP(i.valor_asegurado)}</div></div>
+<div style={{background:'#f0f7ff',borderRadius:8,padding:'6px 8px',gridColumn:'1/-1'}}><div style={{color:'#9ca3af',fontSize:9,fontWeight:700}}>PRIMA</div><div style={{color:GB,fontWeight:900}}>{fmtP(i.costo_prima)}</div></div>
+</div>
+{i.observaciones&&<div style={{fontSize:11,color:'#6b7280',marginBottom:8}}>{i.observaciones}</div>}
+{i.evidencia&&<img src={i.evidencia} alt="poliza" style={{width:'100%',height:80,objectFit:'cover',borderRadius:8,marginBottom:8}}/>}
+<div style={{display:'flex',gap:6}}>
+<button onClick={onE} style={{flex:1,background:'#f3f4f6',border:'none',borderRadius:7,padding:6,cursor:'pointer',fontSize:11,fontWeight:700}}>Editar</button>
+<label style={{background:'#e8f4fd',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:GB,display:'flex',alignItems:'center'}}><Camera size={12}/><input type="file" accept="image/*" style={{display:'none'}} onChange={e=>subF(e,i.id)} disabled={sub}/></label>
+<button onClick={onD} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'6px 9px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button>
+</div></div>)}}/>}
+
 function Alertas(){
 const[alerts,setAlerts]=useState([]);const[loading,setLoading]=useState(true)
-useEffect(()=>{Promise.all([supabase.from('contratos').select('*,copropiedades(nombre)'),supabase.from('tareas').select('*,copropiedades(nombre)'),supabase.from('mantenimientos').select('*,copropiedades(nombre)'),supabase.from('cartera').select('*,copropiedades(nombre)'),supabase.from('pqrs').select('*,copropiedades(nombre)')]).then(([c,t,m,k,p])=>{const a=[]
-;(c.data||[]).forEach(x=>{const d=daysTo(x.fecha_vencimiento);if(d!==null&&d>=0&&d<=60)a.push({tipo:'Contrato',icono:'📄',color:'#dc2626',msg:x.proveedor+' — '+x.servicio,sub:'Vence en '+d+'d · '+(x.copropiedades?.nombre||''),u:d<=15?3:d<=30?2:1})})
+useEffect(()=>{Promise.all([supabase.from('contratos').select('*,copropiedades(nombre)'),supabase.from('tareas').select('*,copropiedades(nombre)'),supabase.from('mantenimientos').select('*,copropiedades(nombre)'),supabase.from('cartera').select('*,copropiedades(nombre)'),supabase.from('pqrs').select('*,copropiedades(nombre)'),supabase.from('polizas').select('*,copropiedades(nombre)')]).then(([c,t,m,k,p,pz])=>{const a=[]
+;(c.data||[]).forEach(x=>{const d=daysTo(x.fecha_vencimiento);if(d!==null&&d>=0&&d<=90)a.push({tipo:'Contrato',icono:'📄',color:'#dc2626',msg:x.proveedor+' — '+x.servicio,sub:'Vence en '+d+'d · '+(x.copropiedades?.nombre||''),u:d<=15?3:d<=45?2:1})})
+;(pz?.data||[]).forEach(x=>{const d=daysTo(x.fin_vigencia);if(d!==null&&d>=0&&d<=90)a.push({tipo:'Poliza',icono:'🛡️',color:'#0891b2',msg:'Poliza '+(x.aseguradora||'')+' '+(x.numero_poliza||''),sub:'Vence en '+d+'d · '+(x.copropiedades?.nombre||''),u:d<=15?3:d<=45?2:1})})
 ;(t.data||[]).forEach(x=>{const d=daysTo(x.fecha_limite);if(d!==null&&d<=0&&x.estado!=='Completada')a.push({tipo:'Tarea vencida',icono:'⚠️',color:'#b91c1c',msg:x.titulo,sub:'Vencio hace '+Math.abs(d)+'d · '+(x.copropiedades?.nombre||''),u:3})})
 ;(m.data||[]).forEach(x=>{const d=daysTo(x.proxima_fecha);if(d!==null&&d>=0&&d<=15)a.push({tipo:'Mantenimiento',icono:'🔧',color:'#d97706',msg:x.area+' — '+(x.proveedor||''),sub:'En '+d+'d · '+(x.copropiedades?.nombre||''),u:d<=3?3:2})})
 ;(k.data||[]).forEach(x=>{if(x.estado==='En mora'&&Number(x.monto_deuda)>0)a.push({tipo:'Cartera mora',icono:'💰',color:'#7c3aed',msg:x.concepto+' — '+(x.deudor||''),sub:'Deuda: '+fmtM(x.monto_deuda)+' · '+(x.copropiedades?.nombre||''),u:2})})
@@ -667,6 +802,9 @@ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{
 function Copropiedades({perfil,onSelect}){
 const{data:cops,loading,insert,update,remove}=useTable('copropiedades');const{data:perfiles}=useTable('perfiles')
 const copsVisibles=perfil?.rol==='delegado'?cops.filter(x=>x.delegado_id===perfil.id):cops
+const[infCop,setInfCop]=useState(null);const[tipoInfC,setTipoInfC]=useState('mes')
+const hoyDC=new Date();const[mesInfC,setMesInfC]=useState(hoyDC.getMonth());const[anioInfC,setAnioInfC]=useState(hoyDC.getFullYear());const[genC,setGenC]=useState(false)
+async function generarInfDeCop(){setGenC(true);try{await genInformePDF({copropiedades:[infCop],getDelegado:cp=>perfiles.find(p=>p.id===cp.delegado_id)?.nombre,tipoInf:tipoInfC,mesInf:mesInfC,anioInf:anioInfC});setInfCop(null)}catch(err){alert('Error PDF: '+err.message)}setGenC(false)}
 const delegados=perfiles.filter(p=>p.rol==='delegado')
 const[show,setShow]=useState(false);const[edit,setEdit]=useState(null)
 const FD={nombre:'',direccion:'',ciudad:'Bogota',tipo:'Residencial',unidades:'',honorarios:'',fecha_inicio:'',fecha_vencimiento:'',delegado_id:'',notas:''}
@@ -681,8 +819,8 @@ return(<div>
 {myCops.length===0&&<div style={{gridColumn:'1/-1',textAlign:'center',padding:48,color:'#9ca3af'}}><Building2 size={40} color="#e5e7eb" style={{margin:'0 auto 12px',display:'block'}}/><p>{perfil.rol==='delegado'?'Sin edificios asignados':'Sin copropiedades'}</p></div>}
 {myCops.map(ct=>{const del=perfiles.find(p=>p.id===ct.delegado_id);const d=daysTo(ct.fecha_vencimiento);return(<div key={ct.id} style={{background:'#fff',border:'1.5px solid #e5e7eb',borderRadius:16,padding:18,cursor:'pointer'}} onClick={()=>onSelect(ct)}>
 <div style={{display:'flex',justifyContent:'space-between',marginBottom:10}}><div style={{background:'#e8f4fd',borderRadius:9,padding:7}}><Building2 size={18} color={GB}/></div>
-<div style={{display:'flex',gap:4}}>{d!==null&&d>=0&&d<=60&&<Bdg t={d+'d'} color="#dc2626"/>}
-<button onClick={e=>{e.stopPropagation();generarPDF(ct,perfiles)}} style={{background:'#f0f7ff',border:'none',borderRadius:7,padding:'4px 7px',cursor:'pointer',color:GB,display:'flex',alignItems:'center',gap:2,fontSize:10,fontWeight:700}} title="Informe PDF"><Download size={11}/>PDF</button>
+<div style={{display:'flex',gap:4}}>{d!==null&&d>=0&&d<=90&&<Bdg t={d+'d'} color="#dc2626"/>}
+<button onClick={e=>{e.stopPropagation();setInfCop(ct)}} style={{background:'#f0f7ff',border:'none',borderRadius:7,padding:'4px 7px',cursor:'pointer',color:GB,display:'flex',alignItems:'center',gap:2,fontSize:10,fontWeight:700}} title="Informe PDF"><Download size={11}/>PDF</button>
 {perfil.rol==='director'&&<><button onClick={e=>{e.stopPropagation();setForm({...ct,unidades:String(ct.unidades),honorarios:String(ct.honorarios),delegado_id:ct.delegado_id||''});setEdit(ct);setShow(true)}} style={{background:'#f3f4f6',border:'none',borderRadius:7,padding:'4px 7px',cursor:'pointer'}}><Edit2 size={12}/></button><button onClick={e=>{e.stopPropagation();if(window.confirm('Eliminar?'))remove(ct.id)}} style={{background:'#fef2f2',border:'none',borderRadius:7,padding:'4px 7px',cursor:'pointer',color:'#dc2626'}}><Trash2 size={12}/></button></>}
 </div></div>
 <div style={{fontWeight:900,fontSize:15,color:GD,marginBottom:2}}>{ct.nombre}</div>
@@ -712,7 +850,7 @@ const{data:perfiles}=useTable('perfiles')
 if(!perfil)return<div style={{display:'flex',alignItems:'center',justifyContent:'center',minHeight:'100vh',background:GD}}><div style={{color:'rgba(255,255,255,0.6)'}}>Cargando...</div></div>
 const menuItems=[...(perfil.rol==='director'?[{key:'panel',label:'Panel de Control',icon:TrendingUp}]:[]),{key:'copropiedades',label:'Copropiedades',icon:Building2},...(perfil.rol==='director'?[{key:'alertas',label:'Alertas',icon:Bell},{key:'delegados',label:'Delegados',icon:Users}]:[]),{key:'miperfil',label:'Mi Perfil',icon:UserCog}]
 const subItemsTop=[{key:'contratos',label:'Contratos',icon:Briefcase,color:'#7c3aed'},{key:'tareas',label:'Tareas',icon:CheckSquare,color:GB},{key:'mantenimiento',label:'Mantenimiento',icon:Wrench,color:'#059669'}]
-const subItemsMas=[{key:'cartera',label:'Cartera',icon:TrendingUp,color:'#dc2626'},{key:'sgsst',label:'SG-SST',icon:Shield,color:'#0891b2'},{key:'pqrs',label:'PQRs',icon:MessageSquare,color:'#e53e3e'},{key:'servicios',label:'Servicios Pub.',icon:Zap,color:'#f59e0b'},{key:'obras',label:'Obras',icon:HardDrive,color:'#f97316'},{key:'cotizaciones',label:'Cotizaciones',icon:Search,color:'#8b5cf6'}]
+const subItemsMas=[{key:'polizas',label:'Polizas',icon:Shield,color:'#0891b2'},{key:'cartera',label:'Cartera',icon:TrendingUp,color:'#dc2626'},{key:'sgsst',label:'SG-SST',icon:Shield,color:'#0891b2'},{key:'pqrs',label:'PQRs',icon:MessageSquare,color:'#e53e3e'},{key:'servicios',label:'Servicios Pub.',icon:Zap,color:'#f59e0b'},{key:'obras',label:'Obras',icon:HardDrive,color:'#f97316'},{key:'cotizaciones',label:'Cotizaciones',icon:Search,color:'#8b5cf6'}]
 const allSubItems=[...subItemsTop,...subItemsMas]
 const goTab=(k)=>{setTab(k);setMenuOpen(false)}
 const goSub=(k)=>{setSubTab(k);setMasOpen(false);setMenuOpen(false)}
@@ -779,6 +917,18 @@ return(<div style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',b
 {subItemsMas.map(({key,label,icon:Icon,color})=>(<button key={key} onClick={()=>goSub(key)} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'12px 16px',border:'none',background:subTab===key?color+'12':'transparent',cursor:'pointer',fontSize:13,fontWeight:subTab===key?700:400,color:subTab===key?color:GD,textAlign:'left',borderLeft:subTab===key?`3px solid ${color}`:'3px solid transparent'}}><Icon size={16} color={color}/>{label}</button>))}
 </div>
 </>}
+{infCop&&<Modal title={'Informe de gestion - '+infCop.nombre} onClose={()=>setInfCop(null)}>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<button onClick={()=>setTipoInfC('mes')} style={{flex:1,background:tipoInfC==='mes'?GB:'#fff',color:tipoInfC==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
+<button onClick={()=>setTipoInfC('anio')} style={{flex:1,background:tipoInfC==='anio'?GB:'#fff',color:tipoInfC==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Anual</button>
+</div>
+<div style={{display:'grid',gridTemplateColumns:tipoInfC==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
+{tipoInfC==='mes'&&<F label="Mes"><select style={inp} value={mesInfC} onChange={e=>setMesInfC(Number(e.target.value))}>{MESES_INF.map((m,i2)=><option key={m} value={i2}>{m}</option>)}</select></F>}
+<F label="Año"><select style={inp} value={anioInfC} onChange={e=>setAnioInfC(Number(e.target.value))}>{[hoyDC.getFullYear(),hoyDC.getFullYear()-1,hoyDC.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
+</div>
+<div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>Informe gerencial completo: indicadores, graficas de gestion, contratos, polizas, tareas, mantenimientos, PQRs, cartera, SG-SST, obras y registro fotografico.</div>
+<button onClick={generarInfDeCop} disabled={genC} style={{width:'100%',background:genC?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:10,padding:12,fontWeight:800,cursor:genC?'wait':'pointer'}}>{genC?'Generando informe...':'📄 Generar y descargar PDF'}</button>
+</Modal>}
 </div>)
 }
 // ---- RENDER ----
@@ -791,6 +941,7 @@ const ContentArea=()=>(<div style={{flex:1,padding:mobile?'16px':24,overflowY:'a
 {selCop&&subTab==='contratos'&&<Contratos copropiedad={selCop}/>}
 {selCop&&subTab==='tareas'&&<Tareas copropiedad={selCop} perfil={perfil}/>}
 {selCop&&subTab==='mantenimiento'&&<Mantenimiento copropiedad={selCop}/>}
+{selCop&&subTab==='polizas'&&<Polizas copropiedad={selCop}/>}
 {selCop&&subTab==='cartera'&&<Cartera copropiedad={selCop}/>}
 {selCop&&subTab==='sgsst'&&<SGSST copropiedad={selCop}/>}
 {selCop&&subTab==='pqrs'&&<PQRs copropiedad={selCop}/>}
