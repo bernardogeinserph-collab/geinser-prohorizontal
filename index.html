@@ -9,6 +9,20 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Anti-cache roto: si el bundle no carga, forzar recarga limpia una sola vez
+      window.addEventListener('error', function(e){
+        var t = e.target || {};
+        if((t.tagName==='SCRIPT'||t.tagName==='LINK') && !sessionStorage.getItem('gz_reloaded')){
+          sessionStorage.setItem('gz_reloaded','1');
+          if(window.caches){caches.keys().then(function(ks){ks.forEach(function(k){caches.delete(k)})})}
+          if(navigator.serviceWorker){navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})})}
+          setTimeout(function(){location.reload()},400);
+        }
+      }, true);
+      // Marcar carga exitosa
+      window.addEventListener('load', function(){ setTimeout(function(){ if(document.getElementById('root').children.length>0) sessionStorage.removeItem('gz_reloaded') }, 2000) });
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
