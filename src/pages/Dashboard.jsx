@@ -942,18 +942,7 @@ return(<div style={{position:'fixed',bottom:0,left:0,right:0,background:'#fff',b
 {subItemsMas.map(({key,label,icon:Icon,color})=>(<button key={key} onClick={()=>goSub(key)} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'12px 16px',border:'none',background:subTab===key?color+'12':'transparent',cursor:'pointer',fontSize:13,fontWeight:subTab===key?700:400,color:subTab===key?color:GD,textAlign:'left',borderLeft:subTab===key?`3px solid ${color}`:'3px solid transparent'}}><Icon size={16} color={color}/>{label}</button>))}
 </div>
 </>}
-{infCop&&<Modal title={'Informe de gestion - '+infCop.nombre} onClose={()=>setInfCop(null)}>
-<div style={{display:'flex',gap:8,marginBottom:16}}>
-<button onClick={()=>setTipoInfC('mes')} style={{flex:1,background:tipoInfC==='mes'?GB:'#fff',color:tipoInfC==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
-<button onClick={()=>setTipoInfC('anio')} style={{flex:1,background:tipoInfC==='anio'?GB:'#fff',color:tipoInfC==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Anual</button>
-</div>
-<div style={{display:'grid',gridTemplateColumns:tipoInfC==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
-{tipoInfC==='mes'&&<F label="Mes"><select style={inp} value={mesInfC} onChange={e=>setMesInfC(Number(e.target.value))}>{MESES_INF.map((m,i2)=><option key={m} value={i2}>{m}</option>)}</select></F>}
-<F label="Año"><select style={inp} value={anioInfC} onChange={e=>setAnioInfC(Number(e.target.value))}>{[hoyDC.getFullYear(),hoyDC.getFullYear()-1,hoyDC.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
-</div>
-<div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>Informe gerencial completo: indicadores, graficas de gestion, contratos, polizas, tareas, mantenimientos, PQRs, cartera, SG-SST, obras y registro fotografico.</div>
-<button onClick={generarInfDeCop} disabled={genC} style={{width:'100%',background:genC?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:10,padding:12,fontWeight:800,cursor:genC?'wait':'pointer'}}>{genC?'Generando informe...':'📄 Generar y descargar PDF'}</button>
-</Modal>}
+
 </div>)
 }
 // ---- RENDER ----
@@ -974,6 +963,18 @@ const ContentArea=()=>(<div style={{flex:1,padding:mobile?'16px':24,overflowY:'a
 {selCop&&subTab==='servicios'&&<ServiciosPublicos copropiedad={selCop}/>}
 {selCop&&subTab==='obras'&&<Obras copropiedad={selCop}/>}
 {selCop&&subTab==='cotizaciones'&&<Cotizaciones copropiedad={selCop}/>}
+{infCop&&<Modal title={'Informe de gestion - '+infCop.nombre} onClose={()=>setInfCop(null)}>
+<div style={{display:'flex',gap:8,marginBottom:16}}>
+<button onClick={()=>setTipoInfC('mes')} style={{flex:1,background:tipoInfC==='mes'?GB:'#fff',color:tipoInfC==='mes'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='mes'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Mensual</button>
+<button onClick={()=>setTipoInfC('anio')} style={{flex:1,background:tipoInfC==='anio'?GB:'#fff',color:tipoInfC==='anio'?'#fff':'#6b7280',border:'1.5px solid '+(tipoInfC==='anio'?GB:'#e5e7eb'),borderRadius:10,padding:'10px 0',cursor:'pointer',fontWeight:800,fontSize:13}}>Anual</button>
+</div>
+<div style={{display:'grid',gridTemplateColumns:tipoInfC==='mes'?'1fr 1fr':'1fr',gap:10,marginBottom:16}}>
+{tipoInfC==='mes'&&<F label="Mes"><select style={inp} value={mesInfC} onChange={e=>setMesInfC(Number(e.target.value))}>{MESES_INF.map((m,i2)=><option key={m} value={i2}>{m}</option>)}</select></F>}
+<F label="Año"><select style={inp} value={anioInfC} onChange={e=>setAnioInfC(Number(e.target.value))}>{[hoyDC.getFullYear(),hoyDC.getFullYear()-1,hoyDC.getFullYear()-2].map(a=><option key={a} value={a}>{a}</option>)}</select></F>
+</div>
+<div style={{background:'#f0f7ff',borderRadius:10,padding:12,fontSize:12,color:'#1e40af',marginBottom:16}}>Informe gerencial completo: indicadores, graficas de gestion, contratos, polizas, tareas, mantenimientos, PQRs, cartera, SG-SST, obras y registro fotografico.</div>
+<button onClick={generarInfDeCop} disabled={genC} style={{width:'100%',background:genC?'#9ca3af':GD,color:'#fff',border:'none',borderRadius:10,padding:12,fontWeight:800,cursor:genC?'wait':'pointer'}}>{genC?'Generando informe...':'📄 Generar y descargar PDF'}</button>
+</Modal>}
 </div>)
 if(mobile)return(
 <div style={{display:'flex',flexDirection:'column',minHeight:'100vh',fontFamily:"'Segoe UI',system-ui,sans-serif",background:'#f1f5f9'}}>
