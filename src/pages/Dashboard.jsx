@@ -841,7 +841,7 @@ const[show,setShow]=useState(false);const[edit,setEdit]=useState(null)
 const FD={nombre:'',direccion:'',ciudad:'Bogota',tipo:'Residencial',unidades:'',honorarios:'',fecha_inicio:'',fecha_vencimiento:'',delegado_id:'',notas:''}
 const[form,setForm]=useState(FD);const Fv=(k,v)=>setForm(p=>({...p,[k]:v}))
 const[toast,setToast]=useState(null);const showT=(m,t='success')=>{setToast({msg:m,type:t});setTimeout(()=>setToast(null),3000)}
-async function save(){if(!form.nombre){showT('Nombre requerido','error');return};const p={...form,unidades:Number(form.unidades)||0,honorarios:Number(form.honorarios)||0,delegado_id:form.delegado_id||null};if(edit){await update(edit.id,p);showT('Actualizada')}else{await insert(p);showT('Creada')};setShow(false);setEdit(null);setForm(FD)}
+async function save(){if(!form.nombre){showT('Nombre requerido','error');return};const p={...form,unidades:Number(form.unidades)||0,honorarios:Number(form.honorarios)||0,delegado_id:form.delegado_id||null};const res=edit?await update(edit.id,p):await insert(p);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}showT(edit?'Actualizada':'Copropiedad creada');setShow(false);setEdit(null);setForm(FD)}
 const myCops=perfil.rol==='delegado'?cops.filter(c=>c.delegado_id===perfil.id):cops
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando...</div>
 return(<div>
