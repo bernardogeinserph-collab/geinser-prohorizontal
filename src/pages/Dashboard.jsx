@@ -798,7 +798,10 @@ async function crearDelegado(){if(!form.nombre||!form.email||!form.password){sho
 const{data:existente}=await supabase.from('perfiles').select('rol').eq('email',form.email.trim()).maybeSingle()
 if(existente?.rol==='director'){showT('Ese correo pertenece al Director. El Director ya puede ingresar como delegado con su mismo usuario (doble rol), no necesita registrarse.','error');return}
 setSaving(true)
-try{const{data,error}=await supabase.rpc('crear_delegado',{p_email:form.email,p_password:form.password,p_nombre:form.nombre,p_telefono:form.telefono||''});if(error)throw error;if(form.copropiedad_id)await supabase.from('copropiedades').update({delegado_id:data.id}).eq('id',form.copropiedad_id);showT('Delegado creado');setShow(false);setForm({nombre:'',email:'',password:'',telefono:'',copropiedad_id:''});refetch()}catch(e){showT('Error: '+e.message,'error')};setSaving(false)}
+try{const{data:{session}}=await supabase.auth.getSession()
+const resp=await fetch('https://xtqwbyfolbmiidiurmch.supabase.co/functions/v1/crear-delegado',{method:'POST',headers:{'Authorization':'Bearer '+session.access_token,'Content-Type':'application/json'},body:JSON.stringify({email:form.email.trim(),password:form.password,nombre:form.nombre,telefono:form.telefono||'',copropiedad_id:form.copropiedad_id||null})})
+const data=await resp.json();if(!resp.ok||data.error)throw new Error(data.error||'Error creando delegado')
+showT('Delegado creado. Se enviaron las credenciales a su correo.');setShow(false);setForm({nombre:'',email:'',password:'',telefono:'',copropiedad_id:''});refetch()}catch(e){showT('Error: '+e.message,'error')};setSaving(false)}
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando...</div>
 return(<div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}><h2 style={{margin:0,fontSize:20,fontWeight:900,color:GD}}>Delegados ({delegados.length})</h2><button onClick={()=>setShow(true)} style={{background:GB,color:'#fff',border:'none',borderRadius:12,padding:'9px 18px',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><UserPlus size={14}/>Nuevo</button></div>
 <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(min(250px,100%),1fr))',gap:14}}>
