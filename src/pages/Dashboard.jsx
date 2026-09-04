@@ -841,7 +841,13 @@ const[show,setShow]=useState(false);const[edit,setEdit]=useState(null)
 const FD={nombre:'',direccion:'',ciudad:'Bogota',tipo:'Residencial',unidades:'',honorarios:'',fecha_inicio:'',fecha_vencimiento:'',delegado_id:'',notas:''}
 const[form,setForm]=useState(FD);const Fv=(k,v)=>setForm(p=>({...p,[k]:v}))
 const[toast,setToast]=useState(null);const showT=(m,t='success')=>{setToast({msg:m,type:t});setTimeout(()=>setToast(null),3000)}
-async function save(){if(!form.nombre){showT('Nombre requerido','error');return};const p={...form,unidades:Number(form.unidades)||0,honorarios:Number(form.honorarios)||0,delegado_id:form.delegado_id||null};const res=edit?await update(edit.id,p):await insert(p);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}showT(edit?'Actualizada':'Copropiedad creada');setShow(false);setEdit(null);setForm(FD)}
+async function save(){if(!form.nombre){showT('Nombre requerido','error');return};const p={...form,unidades:Number(form.unidades)||0,honorarios:Number(form.honorarios)||0,delegado_id:form.delegado_id||null};const res=edit?await update(edit.id,p):await insert(p);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}
+if(p.delegado_id&&p.delegado_id!==(edit?.delegado_id||null)){
+const dg=perfiles.find(x=>x.id===p.delegado_id)
+if(dg?.email){const{data:{session}}=await supabase.auth.getSession()
+fetch('https://xtqwbyfolbmiidiurmch.supabase.co/functions/v1/crear-delegado',{method:'POST',headers:{'Authorization':'Bearer '+(session?.access_token||''),'Content-Type':'application/json'},body:JSON.stringify({notificar_asignacion:true,email:dg.email,nombre:dg.nombre,copropiedad:p.nombre})}).catch(()=>{})
+}}
+showT(edit?'Actualizada':'Copropiedad creada');setShow(false);setEdit(null);setForm(FD)}
 const myCops=perfil.rol==='delegado'?cops.filter(c=>c.delegado_id===perfil.id):cops
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando...</div>
 return(<div>
