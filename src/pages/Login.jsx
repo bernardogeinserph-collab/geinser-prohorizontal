@@ -1,9 +1,14 @@
-import{useState}from'react'
+import{useState,useEffect}from'react'
 import{useAuth}from'../context/AuthContext'
 import{useNavigate}from'react-router-dom'
 import{supabase}from'../lib/supabase'
 
 export default function Login(){
+const[instPrompt,setInstPrompt]=useState(null);const[showInst,setShowInst]=useState(false)
+useEffect(()=>{const h=e=>{e.preventDefault();setInstPrompt(e)};window.addEventListener('beforeinstallprompt',h);return()=>window.removeEventListener('beforeinstallprompt',h)},[])
+async function instalarApp(){
+if(instPrompt){instPrompt.prompt();const{outcome}=await instPrompt.userChoice;if(outcome==='accepted'){setInstPrompt(null);return}}
+setShowInst(true)}
   const[step,setStep]=useState('rol')
   const[rol,setRol]=useState(null)
   const[email,setEmail]=useState('')
@@ -70,6 +75,16 @@ navigate('/')}
       <div style={{background:'#f0f7ff',borderRadius:10,border:'1px solid #bfdbfe',padding:'10px 14px',display:'flex',gap:8,alignItems:'center'}}>
         <span>📱</span><span style={{fontSize:11,color:'#1e40af',fontWeight:500}}>Instala la app en tu celular</span>
       </div>
+{showInst&&<div onClick={()=>setShowInst(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+<div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:16,padding:22,maxWidth:380,width:'100%'}}>
+<h3 style={{margin:'0 0 12px',fontSize:16,fontWeight:900,color:'#0d2d4a'}}>📲 Crear acceso directo</h3>
+<div style={{fontSize:13,color:'#374151',lineHeight:1.7}}>
+<p style={{margin:'0 0 10px'}}><strong>Android (Chrome):</strong><br/>Menú <strong>⋮</strong> (arriba a la derecha) → <strong>"Añadir a pantalla de inicio"</strong> → Añadir.</p>
+<p style={{margin:'0 0 10px'}}><strong>iPhone (Safari):</strong><br/>Botón <strong>Compartir</strong> (cuadro con flecha) → <strong>"Añadir a pantalla de inicio"</strong> → Añadir.</p>
+<p style={{margin:0,fontSize:12,color:'#6b7280'}}>La app quedará como un ícono en tu celular.</p>
+</div>
+<button onClick={()=>setShowInst(false)} style={{width:'100%',marginTop:14,background:'#0d2d4a',color:'#fff',border:'none',borderRadius:10,padding:10,fontWeight:800,cursor:'pointer'}}>Entendido</button>
+</div></div>}
     </div></div>
   )
 
@@ -126,6 +141,7 @@ navigate('/')}
       {!magicSent&&(
         <div style={{borderTop:'1px solid #f1f5f9',paddingTop:12,marginTop:2}}>
           <button onClick={handleMagic} disabled={loading||!email} style={{width:'100%',background:'#f8fafc',border:'2px dashed #cbd5e1',borderRadius:12,padding:'11px',fontWeight:700,fontSize:13,cursor:'pointer',color:'#475569',opacity:!email?0.5:1}}>📧 Recibir enlace por correo</button>
+{rol==='delegado'&&<button type="button" onClick={instalarApp} style={{width:'100%',background:'#f0f7ff',border:'1.5px solid #bfdbfe',borderRadius:12,padding:'11px',fontWeight:800,fontSize:13,cursor:'pointer',color:'#1e6fae',marginTop:8}}>📲 Crear acceso directo en tu celular</button>}
         </div>
       )}
       <p style={{textAlign:'center',fontSize:10,color:'#cbd5e1',marginTop:16}}>Geinser Prohorizontal 2025</p>
