@@ -796,7 +796,7 @@ async function reenviarInvitacion(d){
 if(!window.confirm('Se generara una NUEVA contrasena temporal para '+d.nombre+' y se le enviara por correo. Continuar?'))return
 setReenviando(d.id)
 try{const{data:{session}}=await supabase.auth.getSession()
-const resp=await fetch('https://xtqwbyfolbmiidiurmch.supabase.co/functions/v1/crear-delegado',{method:'POST',headers:{'Authorization':'Bearer '+(session?.access_token||''),'Content-Type':'application/json'},body:JSON.stringify({reenviar_invitacion:true,email:d.email})})
+const resp=await fetch('https://xtqwbyfolbmiidiurmch.supabase.co/functions/v1/crear-delegado',{method:'POST',headers:{'Authorization':'Bearer '+(session?.access_token||''),'Content-Type':'application/json'},body:JSON.stringify({reenviar_invitacion:true,email:d.email,user_id:d.id})})
 const data=await resp.json()
 if(data.error)throw new Error(data.error)
 if(data.correo_enviado){window.alert('Invitacion enviada a '+d.email+'\n\nContrasena temporal: '+data.password_temporal+'\n\nGuardala por si necesitas compartirla por WhatsApp.')}
