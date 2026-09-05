@@ -582,6 +582,20 @@ const[show,setShow]=useState(false);const[edit,setEdit]=useState(null);const[for
 const Fv=(k,v)=>setForm(p=>({...p,[k]:v}))
 const[toast,setToast]=useState(null);const showT=(m,t='success')=>{setToast({msg:m,type:t});setTimeout(()=>setToast(null),3000)}
 async function save(){const payload={...form,copropiedad_id:copropiedad.id};Object.keys(payload).forEach(k=>{if(['valor','monto_deuda','monto_recuperado','costo','progreso','valor_asegurado','costo_prima','dias_preaviso'].includes(k)&&payload[k]!=='')payload[k]=Number(payload[k]);if(k.includes('fecha')&&payload[k]==='')payload[k]=null});const res=edit?await update(edit.id,payload):await insert(payload);if(res?.error){showT('Error al guardar: '+res.error.message,'error');return}showT(edit?'Actualizado':'Registrado');setShow(false);setEdit(null);setForm(FD)}
+async function subirArchivo(e,id,campo){const file=e.target.files[0];if(!file)return;setSubiendo(true)
+const path=tabla+'/'+id+'/'+campo+'_'+Date.now()+'.'+(file.name.split('.').pop()||'bin')
+const{error}=await supabase.storage.from('geinser-fotos').upload(path,file,{upsert:true})
+if(error){showT('Error subiendo archivo: '+error.message,'error');setSubiendo(false);return}
+const{data:u}=supabase.storage.from('geinser-fotos').getPublicUrl(path)
+const res=await update(id,{[campo]:u.publicUrl});setSubiendo(false)
+if(res?.error){showT('Error: '+res.error.message,'error');return}
+showT('Archivo guardado');refetch()}
+async function quitarEvidencia(){if(!edit?.evidencia)return;if(!window.confirm('Quitar la foto de este registro?'))return
+const res=await update(edit.id,{evidencia:null})
+if(res?.error){showT('Error: '+res.error.message,'error');return}
+const path=decodeURIComponent((edit.evidencia.split('/geinser-fotos/')[1]||''))
+if(path)supabase.storage.from('geinser-fotos').remove([path])
+setEdit(p=>({...p,evidencia:null}));showT('Foto eliminada');refetch()}
 async function subirFoto(e,id){const file=e.target.files[0];if(!file)return;setSubiendo(true);const path=`${tabla}/${id}/${Date.now()}.${file.name.split('.').pop()||'jpg'}`;const{error}=await supabase.storage.from('geinser-fotos').upload(path,file,{upsert:true});if(error){showT('Error subiendo foto: '+error.message,'error');setSubiendo(false);return};const{data:u}=supabase.storage.from('geinser-fotos').getPublicUrl(path);const res=await update(id,{evidencia:u.publicUrl});setSubiendo(false);if(res?.error){showT('Error guardando foto: '+res.error.message,'error');return}showT('Foto subida');refetch()}
 if(loading)return<div style={{padding:40,textAlign:'center',color:'#9ca3af'}}>Cargando...</div>
 return(<div><div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:20}}><h2 style={{margin:0,fontSize:20,fontWeight:900,color:GD}}>{titulo}</h2><button onClick={()=>{setForm(FD);setEdit(null);setShow(true)}} style={{background:color,color:'#fff',border:'none',borderRadius:12,padding:'9px 18px',fontWeight:800,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}><Plus size={14}/>Nuevo</button></div>
