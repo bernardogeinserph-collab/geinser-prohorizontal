@@ -27,7 +27,8 @@ if(err){setError('Correo o contrasena incorrectos');setLoading(false);return}
 const{data:ud}=await supabase.auth.getUser()
 const uid=ud?.user?.id
 if(uid){
-const{data:perf}=await supabase.from('perfiles').select('rol').eq('id',uid).single()
+const{data:perf}=await supabase.from('perfiles').select('rol,activo').eq('id',uid).single()
+if(perf&&perf.activo===false){await supabase.auth.signOut();setError('Tu usuario esta desactivado. Contacta al director.');setLoading(false);return}
 if(perf&&perf.rol==='delegado'&&rol==='director'){
 await supabase.auth.signOut()
 setError('Este usuario no es director. Selecciona acceso Delegado.')
